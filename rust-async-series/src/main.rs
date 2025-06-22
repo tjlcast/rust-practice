@@ -44,28 +44,24 @@ impl Future for SleepFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // 获取状态锁
+        // Q: 这里 poll 可能被多次调用
         let mut guard = self.state.lock().unwrap();
 
         println!("Polling...");
 
-        // 如果状态为完成，则返回完成
         if guard.inner_state == InnerState::Done {
             return Poll::Ready(());
         }
 
-        // 如果状态为初始化，则设置waker，并将状态设置为睡眠
         if guard.inner_state == InnerState::Init {
             guard.waker = Some(cx.waker().clone());
             guard.inner_state = InnerState::Sleeping;
 
-            // 获取持续时间
             let duration = self.duration;
-            // 克隆状态
             let state_cloned = Arc::clone(&self.state);
 
-            // 创建新线程，睡眠指定时间后，将状态设置为完成，并唤醒waker
             thread::spawn(move || {
+                // Q: 这里不能通过self（线程不安全）
                 println!("Start sleeping for {:?} seconds", duration);
                 thread::sleep(duration);
                 let mut guard = state_cloned.lock().unwrap();
@@ -77,9 +73,7 @@ impl Future for SleepFuture {
             });
         }
          
-        // 设置waker
         guard.waker = Some(cx.waker().clone());
-        // 返回等待
         Poll::Pending
     }
 }
