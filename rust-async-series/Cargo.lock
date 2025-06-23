@@ -102,6 +102,7 @@ dependencies = [
 name = "rust-async-series"
 version = "0.1.0"
 dependencies = [
+ "pin-project-lite",
  "tokio",
 ]
 
