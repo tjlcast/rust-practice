@@ -45,6 +45,17 @@ impl List {
     }
 }
 
+impl Drop for List {
+    fn drop(&mut self) {
+        let mut cur_link = std::mem::replace(&mut self.head, Link::Empty);
+        while let Link::More(mut boxed_node) = cur_link {
+            cur_link = std::mem::replace(&mut boxed_node.next, Link::Empty);
+            // self.pop() 的会返回 Option<i32>, 而我们之前的实现仅仅对智能指针 Box<Node> 进行操作。
+            // 前者会对值进行拷贝，而后者仅仅使用的是指针类型。
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
