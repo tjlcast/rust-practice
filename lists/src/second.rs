@@ -80,6 +80,11 @@ mod tests {
 
         list.peek_mut().map(|value| *value = 42);
 
+        // 实际上 &mut value 是一个模式匹配，
+        // 它用 &mut value 模式去匹配一个可变的引用，
+        // 此时匹配出来的 value 显然是一个值，而不是可变引用
+        // list.peek_mut().map(|&mut value| value = 42);
+
         assert_eq!(list.peek(), Some(&42));
         assert_eq!(list.pop(), Some(42));
     }
