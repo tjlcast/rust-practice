@@ -125,6 +125,7 @@ impl<T> List<T> {
 impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = &'a mut T;
     fn next(&mut self) -> Option<Self::Item> {
+        // 在map的调用的时候，会把Option中的类型进行传参（copy）
         // Option 和不可变引用 &T 是可以 Copy
         // 可变引用 &mut T 不可以 Copy
         self.next.take().map(|node| {
