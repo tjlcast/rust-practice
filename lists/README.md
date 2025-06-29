@@ -108,3 +108,35 @@ fn next(&mut self) -> Option<Self::Item> {
     })
 }
 ```
+
+
+### and_then
+
+**Origin**
+``` rust
+pub fn tail(&self) -> List<T> {
+    List {
+        head: self.head.as_ref().map(|node| node.next.clone()),
+    }
+}
+```
+
+**New**
+``` rust
+pub fn pop(&mut self) -> Option<i32> {
+    self.head.take().and_then(|node| {
+        self.head = node.next;
+        Some(node.elem)
+    })
+}
+```
+
+-------------------
+
+
+| 方法       | 行为                                      | 适合场景                 |
+| ---------- | ----------------------------------------- | ------------------------ |
+| `map`      | `Option<T> → Option<U>`                   | 值转换但保持结构         |
+| `and_then` | `Option<T> → (T → Option<U>) → Option<U>` | 需要"展平"嵌套 Option 时 |
+
+关键点：当闭包本身已经返回 `Option` 时，应该使用 `and_then` 而不是 `map`，这样才能避免产生嵌套的 `Option<Option<T>>` 结构。
