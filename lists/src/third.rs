@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(list.head(), Some(&2));
 
         let list = list.tail();
-        assert_eq!(list.head(), None);
+        assert_eq!(list.head(), Some(&1));
 
         let list = list.tail();
         assert_eq!(list.head(), None);

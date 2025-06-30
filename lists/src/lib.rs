@@ -2,6 +2,7 @@ pub mod first;
 pub mod first1;
 pub mod second;
 pub mod third;
+pub mod third1;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
