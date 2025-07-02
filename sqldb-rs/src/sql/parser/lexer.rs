@@ -207,7 +207,7 @@ impl<'a> Lexer<'a> {
             None => return Ok(None),
         };
 
-        while let Some(c) = self.next_if(|c| c.is_alphabetic() || c == '_') {
+        while let Some(c) = self.next_if(|c| c.is_alphanumeric() || c == '_') {
             value.push(c);
         }
 
@@ -268,15 +268,243 @@ mod tests {
 
     #[test]
     fn test_lexer_create_table() -> Result<()> {
-        let tokens = Lexer::new("create table tbl (
-        id1 int primary key, id2 integer)
-        ").peekable().collect::<Result<Vec<_>>>?;
-        
+        let tokens = Lexer::new(
+            "create table tbl
+                        (
+                            id1 int primary key,
+                            id2 integer
+                        );
+                        ",
+        )
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
+
         println!("{:?}", tokens);
-        assert_eq!(tokens, vec![
-            Token::Keyword(Keyword::Create),
-            Token::Keyword(Keyword::Table),
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Create),
+                Token::Keyword(Keyword::Table),
+                Token::Ident("tbl".to_string()),
+                Token::OpenParen,
+                Token::Ident("id1".to_string()),
+                Token::Keyword(Keyword::Int),
+                Token::Keyword(Keyword::Primary),
+                Token::Keyword(Keyword::Key),
+                Token::Comma,
+                Token::Ident("id2".to_string()),
+                Token::Keyword(Keyword::Integer),
+                Token::CloseParen,
+                Token::Semicolon,
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lexer_create_case1() -> Result<()> {
+        let tokens = Lexer::new(
+            "create table tbl
+                        (
+                            id1 int primary key,
+                            id2 integer
+                        );",
+        )
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Create),
+                Token::Keyword(Keyword::Table),
+                Token::Ident("tbl".to_string()),
+                Token::OpenParen,
+                Token::Ident("id1".to_string()),
+                Token::Keyword(Keyword::Int),
+                Token::Keyword(Keyword::Primary),
+                Token::Keyword(Keyword::Key),
+                Token::Comma,
+                Token::Ident("id2".to_string()),
+                Token::Keyword(Keyword::Integer),
+                Token::CloseParen,
+                Token::Semicolon,
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lexer_case2() -> Result<()> {
+        let tokens = Lexer::new(
+            "create table tbl
+                        (
+                            id1 int primary key,
+                            id2 integer,
+                            c1 bool null,
+                            c2 boolean not null,
+                            c3 float null,
+                            c4 double,
+                            c5 string,
+                            c6 text,
+                            c7 varchar default 'foo',
+                            c8 int default 100,
+                            c9 integer
+                        );",
+        )
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Create),
+                Token::Keyword(Keyword::Table),
+                Token::Ident("tbl".to_string()),
+                Token::OpenParen,
+                Token::Ident("id1".to_string()),
+                Token::Keyword(Keyword::Int),
+                Token::Keyword(Keyword::Primary),
+                Token::Keyword(Keyword::Key),
+                Token::Comma,
+                Token::Ident("id2".to_string()),
+                Token::Keyword(Keyword::Integer),
+                Token::Comma,
+                Token::Ident("c1".to_string()),
+                Token::Keyword(Keyword::Bool),
+                Token::Keyword(Keyword::Null),
+                Token::Comma,
+                Token::Ident("c2".to_string()),
+                Token::Keyword(Keyword::Boolean),
+                Token::Keyword(Keyword::Not),
+                Token::Keyword(Keyword::Null),
+                Token::Comma,
+                Token::Ident("c3".to_string()),
+                Token::Keyword(Keyword::Float),
+                Token::Keyword(Keyword::Null),
+                Token::Comma,
+                Token::Ident("c4".to_string()),
+                Token::Keyword(Keyword::Double),
+                Token::Comma,
+                Token::Ident("c5".to_string()),
+                Token::Keyword(Keyword::String),
+                Token::Comma,
+                Token::Ident("c6".to_string()),
+                Token::Keyword(Keyword::Text),
+                Token::Comma,
+                Token::Ident("c7".to_string()),
+                Token::Keyword(Keyword::Varchar),
+                Token::Keyword(Keyword::Default),
+                Token::String("foo".to_string()),
+                Token::Comma,
+                Token::Ident("c8".to_string()),
+                Token::Keyword(Keyword::Int),
+                Token::Keyword(Keyword::Default),
+                Token::Number("100".to_string()),
+                Token::Comma,
+                Token::Ident("c9".to_string()),
+                Token::Keyword(Keyword::Integer),
+                Token::CloseParen,
+                Token::Semicolon,
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lexer_insert_case1() -> Result<()> {
+        let tokens = Lexer::new("insert into tbl values (1, 2, '3', true, false, 4.55);")
+            .peekable()
+            .collect::<Result<Vec<_>>>()?;
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Insert),
+                Token::Keyword(Keyword::Into),
+                Token::Ident("tbl".to_string()),
+                Token::Keyword(Keyword::Values),
+                Token::OpenParen,
+                Token::Number("1".to_string()),
+                Token::Comma,
+                Token::Number("2".to_string()),
+                Token::Comma,
+                Token::String("3".to_string()),
+                Token::Comma,
+                Token::Keyword(Keyword::True),
+                Token::Comma,
+                Token::Keyword(Keyword::False),
+                Token::Comma,
+                Token::Number("4.55".to_string()),
+                Token::CloseParen,
+                Token::Semicolon,
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lexer_insert_case2() -> Result<()> {
+        let tokens = Lexer::new(
+            "INSERT INTO      tbl (id, name, age) values (1, 2, '3', true, false, 4.55);",
+        )
+        .peekable()
+        .collect::<Result<Vec<_>>>()?;
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Insert),
+                Token::Keyword(Keyword::Into),
+                Token::Ident("tbl".to_string()),
+                Token::OpenParen,
+                Token::Ident("id".to_string()),
+                Token::Comma,
+                Token::Ident("name".to_string()),
+                Token::Comma,
+                Token::Ident("age".to_string()),
+                Token::CloseParen,
+                Token::Keyword(Keyword::Values),
+                Token::OpenParen,
+                Token::Number("1".to_string()),
+                Token::Comma,
+                Token::Number("2".to_string()),
+                Token::Comma,
+                Token::String("3".to_string()),
+                Token::Comma,
+                Token::Keyword(Keyword::True),
+                Token::Comma,
+                Token::Keyword(Keyword::False),
+                Token::Comma,
+                Token::Number("4.55".to_string()),
+                Token::CloseParen,
+                Token::Semicolon,
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lexer_select_case1() -> Result<()> {
+        let tokens = Lexer::new("select * from tbl;")
+            .peekable()
+            .collect::<Result<Vec<_>>>()?;
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Keyword(Keyword::Select),
+                Token::Asterisk,
+                Token::Keyword(Keyword::From),
+                Token::Ident("tbl".to_string()),
+                Token::Semicolon,
+            ]
+        );
 
         Ok(())
     }
