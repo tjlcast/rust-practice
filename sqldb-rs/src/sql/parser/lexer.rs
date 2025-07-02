@@ -121,6 +121,21 @@ pub struct Lexer<'a> {
     iter: Peekable<Chars<'a>>,
 }
 
+impl<'a> Iterator for Lexer<'a> {
+    type Item = Result<Token>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.scan() {
+            Ok(Some(token)) => Some(Ok(token)),
+            Ok(None) => self
+                .iter
+                .peek()
+                .map(|c| Err(Error::Parse(format!("[Lexer] Unexpected character {}", c)))),
+            Err(err) => Some(Err(err)),
+        }
+    }
+}
+
 impl<'a> Lexer<'a> {
     pub fn new(sql_text: &'a str) -> Self {
         Self {
@@ -154,8 +169,8 @@ impl<'a> Lexer<'a> {
         Some(value)
     }
 
-    // 扫描得到下一个token
-    fn scan(&mut self) -> Result<Token> {
+    // 扫描得到下一个 Token
+    fn scan(&mut self) -> Result<Option<Token>> {
         // 清除字符串中空白的部分
         self.erase_whitespace();
 
@@ -165,11 +180,9 @@ impl<'a> Lexer<'a> {
             // 扫描数字
             Some(c) if c.is_ascii_digit() => self.scan_number(), // 扫描数字
             Some(c) if c.is_alphabetic() => self.scan_ident(),   // 扫描 Ident
-            Some(_) => self.scan_symbol(),
+            Some(_) => self.scan_symbol(),                       // 扫描符号
             None => Ok(None),
-        };
-
-        todo!()
+        }
     }
 
     // 扫描符号
@@ -245,5 +258,26 @@ impl<'a> Lexer<'a> {
         }
 
         Ok(Some(Token::String(val)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Result;
+
+    #[test]
+    fn test_lexer_create_table() -> Result<()> {
+        let tokens = Lexer::new("create table tbl (
+        id1 int primary key, id2 integer)
+        ").peekable().collect::<Result<Vec<_>>>?;
+        
+        println!("{:?}", tokens);
+        assert_eq!(tokens, vec![
+            Token::Keyword(Keyword::Create),
+            Token::Keyword(Keyword::Table),
+        ]);
+
+        Ok(())
     }
 }
