@@ -24,6 +24,12 @@ impl<'a> Parser<'a> {
     // 解析，获取抽象语法树
     pub fn parse(&mut self) -> Result<ast::Statement> {
         let stmt = self.parse_statement()?;
+
+        // 期望 sql 语句的最后有一个分号
+        self.next_expect(Token::Semicolon)?;
+        if let Some(token) = self.peek()? {
+            return Err(Error::Parse(format!("[Parser] Unexpected token {}", token)));
+        }
         Ok(stmt)
     }
 
@@ -32,9 +38,73 @@ impl<'a> Parser<'a> {
         match self.peek()? {
             Some(Token::Keyword(Keyword::Create)) => self.parse_ddl(),
             Some(Token::Keyword(Keyword::Select)) => self.parse_select(),
+            Some(Token::Keyword(Keyword::Insert)) => self.parse_insert(),
             Some(t) => Err(Error::Parse(format!("[Parser] Unexpected token: {:?}", t))),
             None => Err(Error::Parse(format!("[Parser] Unexpected end of input"))),
         }
+    }
+
+    // 解析 insert 类型
+    fn parse_insert(&mut self) -> Result<ast::Statement> {
+        self.next_expect(Token::Keyword(Keyword::Insert))?;
+        self.next_expect(Token::Keyword(Keyword::Into))?;
+
+        // 表名
+        let table_name = self.next_indent()?;
+
+        // 查看是否有指定的列
+        let columns = if self.next_if_token(Token::OpenParen).is_some() {
+            let mut cols = Vec::new();
+            loop {
+                cols.push(self.next_indent()?.to_string());
+                match self.next()? {
+                    Token::CloseParen => break,
+                    Token::Comma => {}
+                    token => {
+                        return Err(Error::Parse(format!(
+                            "[Parser] Unexpected token: {}",
+                            token
+                        )));
+                    }
+                }
+            }
+            Some(cols)
+        } else {
+            None
+        };
+
+        // 解析 value 信息
+        self.next_expect(Token::Keyword(Keyword::Values))?;
+        // inser into tbl(a, b, c) values (1, 2, 3), (3, 4, 5);
+        let mut values = Vec::new();
+        loop {
+            self.next_expect(Token::OpenParen)?;
+            let mut exprs = Vec::new();
+            loop {
+                exprs.push(self.parse_expression()?);
+                match self.next()? {
+                    Token::CloseParen => break,
+                    Token::Comma => {}
+                    token => {
+                        return Err(Error::Parse(format!(
+                            "[Parser] Unexpected token: {}",
+                            token
+                        )));
+                    }
+                }
+            }
+            values.push(exprs);
+
+            if self.next_if_token(Token::Comma).is_none() {
+                break;
+            }
+        }
+
+        Ok(ast::Statement::Insert {
+            table_name,
+            columns,
+            values,
+        })
     }
 
     // 解析 select 类型
@@ -78,7 +148,7 @@ impl<'a> Parser<'a> {
         let mut columns = Vec::new();
         loop {
             columns.push(self.parse_ddl_column()?);
-            // 如果后面没有逗号，列解析完成，推出
+            // 如果后面没有逗号，列解析完成，退出
             if self.next_if_token(Token::Comma).is_none() {
                 break;
             }
@@ -172,12 +242,13 @@ impl<'a> Parser<'a> {
         match self.next()? {
             Token::Ident(ident) => Ok(ident),
             token => Err(Error::Parse(format!(
-                "[Parser] Expected indent, got token {}",
+                "[Parser] Expected indent, but got token {}",
                 token
             ))),
         }
     }
 
+    // 只有当前token是指定的token的时候返回，否则报错(返回Err)
     fn next_expect(&mut self, expect: Token) -> Result<()> {
         let token = self.next()?;
         if token != expect {
@@ -202,5 +273,140 @@ impl<'a> Parser<'a> {
 
     fn next_if_token(&mut self, token: Token) -> Option<Token> {
         self.next_if(|t| t == &token)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Result;
+
+    #[test]
+    fn test_parse_create_table() -> Result<()> {
+        let sql1 = "
+            create table tbl1 (
+                a int default 100,
+                b float not null,
+                c varchar null,
+                d bool default true);
+        ";
+
+        let stmt1 = Parser::new(sql1).parse()?;
+        println!("{:?}", stmt1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_create_table1() -> Result<()> {
+        let sql1 = "
+        create table tbl1 (
+            a int default 100,
+            b float not null     ,
+            c varchar null,
+            d bool default     true
+        );
+        ";
+
+        let stmt1 = Parser::new(sql1).parse()?;
+        println!("{:?}", stmt1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_create_table_with_err() -> Result<()> {
+        let sql1 = "
+            create tabl tb1 (
+            a int default 100,
+            b float not null     ,
+            c varchar null,
+            d bool default     true
+        );
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse();
+        assert!(stmt1_or_err.is_err());
+        match stmt1_or_err {
+            Ok(_) => println!("ok"),
+            Err(e) => println!("err: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_create_table_with_err1() -> Result<()> {
+        let sql1 = "
+            create table tb1 (
+            a int default 100,
+            b float not null     ,
+            c varchar null,
+            d bool default     true
+        ); create
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse();
+        assert!(stmt1_or_err.is_err());
+        match stmt1_or_err {
+            Ok(stmt) => println!("{:?}", stmt),
+            Err(e) => println!("err: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_insert0() -> Result<()> {
+        let sql1 = "
+            insert into tbl1 values (1, 2.0, 'hello', true);
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse();
+        match stmt1_or_err {
+            Ok(stmt) => println!("{:?}", stmt),
+            Err(e) => println!("err: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_insert1() -> Result<()> {
+        let sql1 = "
+            insert into tbl1 (a, b, c, d) values (1, 2.0, 'hello', true);
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse();
+        match stmt1_or_err {
+            Ok(stmt) => println!("{:?}", stmt),
+            Err(e) => println!("err: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_insert2() -> Result<()> {
+        let sql1 = "
+            insert into tbl1 (a, b, c, d) values (1, 2.0, 'hello', true), (1, 2.0, 'hello', true);
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse();
+        match stmt1_or_err {
+            Ok(stmt) => println!("{:?}", stmt),
+            Err(e) => println!("err: {}", e),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_select() -> Result<()> {
+        let sql1 = "
+            select * from tbl1;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse();
+        match stmt1_or_err {
+            Ok(stmt) => println!("{:?}", stmt),
+            Err(e) => println!("err: {}", e),
+        }
+
+        Ok(())
     }
 }
