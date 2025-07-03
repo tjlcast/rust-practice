@@ -4,5 +4,4 @@ pub enum DataType {
     Integer,
     Float,
     String,
-
 }

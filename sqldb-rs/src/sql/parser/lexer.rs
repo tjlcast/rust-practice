@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use std::{iter::Peekable, str::Chars};
+use std::{fmt::Display, iter::Peekable, str::Chars};
 /*
 
 CREATE TABLE table_name (
@@ -87,6 +87,40 @@ impl Keyword {
             _ => return None,
         })
     }
+
+    pub fn to_str(&self) -> &str {
+        match self {
+            Self::Create => "CREATE",
+            Self::Table => "TABLE",
+            Self::Int => "INT",
+            Self::Integer => "INTEGER",
+            Self::Boolean => "BOOLEAN",
+            Self::Bool => "BOOL",
+            Self::String => "STRING",
+            Self::Text => "TEXT",
+            Self::Varchar => "VARCHAR",
+            Self::Float => "FLOAT",
+            Self::Double => "DOUBLE",
+            Self::Select => "SELECT",
+            Self::From => "FROM",
+            Self::Insert => "INSERT",
+            Self::Into => "INTO",
+            Self::Values => "VALUES",
+            Self::True => "TRUE",
+            Self::False => "FALSE",
+            Self::Default => "DEFAULT",
+            Self::Not => "NOT",
+            Self::Null => "NULL",
+            Self::Primary => "PRIMARY",
+            Self::Key => "KEY",
+        }
+    }
+}
+
+impl Display for Keyword {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.to_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -115,6 +149,25 @@ pub enum Token {
     Minus,
     // 斜杠 /
     Slash,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Token::Keyword(keyword) => keyword.to_str(),
+            Token::Ident(ident) => ident,
+            Token::String(string) => string,
+            Token::Number(number) => number,
+            Token::OpenParen => "(",
+            Token::CloseParen => ")",
+            Token::Comma => ",",
+            Token::Semicolon => ";",
+            Token::Asterisk => "*",
+            Token::Plus => "+",
+            Token::Minus => "-",
+            Token::Slash => "/",
+        })
+    }
 }
 
 pub struct Lexer<'a> {

@@ -1,15 +1,20 @@
+use crate::sql::types::DataType;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    CreateTable {name: String, Columns: Vec<Column>},
+    CreateTable {
+        name: String,
+        columns: Vec<Column>,
+    },
     Insert {
         table_name: String,
         columns: Option<Vec<String>>,
         values: Vec<Vec<Expression>>,
     },
-    Select { table_name: String },
-} 
-
+    Select {
+        table_name: String,
+    },
+}
 
 #[derive(Debug, PartialEq)]
 pub struct Column {
@@ -29,7 +34,6 @@ impl From<Consts> for Expression {
         Self::Consts(value)
     }
 }
-
 
 #[derive(Debug, PartialEq)]
 pub enum Consts {
