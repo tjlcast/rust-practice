@@ -1,6 +1,8 @@
 use crate::sql::{
     parser::ast,
     plan::{Node, Plan},
+    schema::{self, Table},
+    types::Value,
 };
 
 pub struct Planner;
@@ -16,28 +18,40 @@ impl Planner {
 
     fn build_statment(&self, stmt: ast::Statement) -> Node {
         match stmt {
-            ast::Statement::CreateTable { name: table_name, columns } => {
+            ast::Statement::CreateTable { name, columns } => Node::CreateTable {
                 schema: Table {
-                    name: table_name,
+                    name,
                     // for each column
-                    columns: columns.into_iter().map(|c| {
-                        let nullable = c.nullable.unwrap_or(true);
-                        match c.default {
-                            Some(expr) => todo!(),
-                            None if nullable => Some(Value::Null),
-                            None => None,
-                        }
-                    })
-                }
+                    columns: columns
+                        .into_iter()
+                        .map(|c| {
+                            let nullable = c.nullable.unwrap_or(true);
+                            let default = match c.default {
+                                Some(expr) => Some(Value::from_expression(expr)),
+                                None if nullable => Some(Value::Null),
+                                None => None,
+                            };
+
+                            schema::Column {
+                                name: c.name,
+                                datatype: c.datatype,
+                                nullable,
+                                default,
+                            }
+                        })
+                        .collect(),
+                },
             },
             ast::Statement::Insert {
                 table_name,
                 columns,
                 values,
-            } => todo!(),
-            ast::Statement::Select {
+            } => Node::Insert {
                 table_name,
-            } => todo!(),
+                columns: columns.unwrap_or_default(),
+                values,
+            },
+            ast::Statement::Select { table_name } => Node::Scan { table_name },
         }
     }
 }
