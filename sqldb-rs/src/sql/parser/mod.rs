@@ -2,8 +2,6 @@ use crate::error::{Error, Result};
 use crate::sql::parser::ast::Column;
 use crate::sql::parser::lexer::{Keyword, Lexer, Token};
 use crate::sql::types::DataType;
-use std::env::SplitPaths;
-use std::fmt::format;
 use std::iter::Peekable;
 
 pub mod ast;
@@ -238,6 +236,15 @@ impl<'a> Parser<'a> {
             .unwrap_or_else(|| Err(Error::Parse(format!("[Parser] unexpected end of input"))))
     }
 
+    /// 获取下一个标记，并期望它是一个标识符（indent）。
+    ///
+    /// 这个方法会消耗迭代器中的一个标记。
+    ///
+    /// # 返回值
+    /// 如果下一个标记是一个标识符，则返回该标识符的字符串表示。
+    ///
+    /// # 错误
+    /// 如果下一个标记不是标识符，则返回一个包含错误信息的 `Err`。
     fn next_indent(&mut self) -> Result<String> {
         match self.next()? {
             Token::Ident(ident) => Ok(ident),
@@ -248,7 +255,19 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // 只有当前token是指定的token的时候返回，否则报错(返回Err)
+    /// 只有当前token是指定的token的时候返回，否则报错(返回Err)
+    /// 检查下一个标记是否与期望的标记相符，如果不相符则返回错误。
+    ///
+    /// 这个方法会消耗迭代器中的一个标记。
+    ///
+    /// # 参数
+    /// * `expect` - 期望的标记。
+    ///
+    /// # 返回值
+    /// 如果下一个标记与期望的标记相符，则返回 `Ok(())`，否则返回一个解析错误。
+    ///
+    /// # 错误
+    /// 如果下一个标记与期望的标记不符，则返回一个包含错误信息的 `Err`。
     fn next_expect(&mut self, expect: Token) -> Result<()> {
         let token = self.next()?;
         if token != expect {
@@ -260,7 +279,17 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    // 如果满足条件，则跳转到下一个 Token
+    /// 如果满足条件，则跳转到下一个 Token
+    /// 如果下一个标记满足给定条件，则返回该标记，否则返回 None。
+    ///
+    /// 这个方法可能会消耗迭代器中的一个标记，如果满足条件的话;
+    /// 如果不满足则不消耗迭代器中的标记.
+    ///
+    /// # 参数
+    /// * `predicate` - 用于检查标记是否满足条件的闭包。
+    ///
+    /// # 返回值
+    /// 如果下一个标记满足条件，则返回该标记，否则返回 None。
     fn next_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> Option<Token> {
         self.peek().unwrap_or(None).filter(|t| predicate(t))?;
         self.next().ok()
@@ -279,7 +308,13 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Result;
+    use crate::{
+        error::Result,
+        sql::{
+            parser::ast::{Expression, Statement},
+            types::Value,
+        },
+    };
 
     #[test]
     fn test_parse_create_table() -> Result<()> {
@@ -293,6 +328,38 @@ mod tests {
 
         let stmt1 = Parser::new(sql1).parse()?;
         println!("{:?}", stmt1);
+        assert_eq!(
+            stmt1,
+            Statement::CreateTable {
+                name: "tbl1".to_string(),
+                columns: vec![
+                    Column {
+                        name: "a".to_string(),
+                        datatype: DataType::Integer,
+                        nullable: None,
+                        default: Some(Expression::Consts(ast::Consts::Integer(100))),
+                    },
+                    Column {
+                        name: "b".to_string(),
+                        datatype: DataType::Float,
+                        nullable: Some(false),
+                        default: None,
+                    },
+                    Column {
+                        name: "c".to_string(),
+                        datatype: DataType::String,
+                        nullable: Some(true),
+                        default: None,
+                    },
+                    Column {
+                        name: "d".to_string(),
+                        datatype: DataType::Boolean,
+                        nullable: None,
+                        default: Some(Expression::Consts(ast::Consts::Boolean(true))),
+                    },
+                ],
+            }
+        );
 
         Ok(())
     }
@@ -310,6 +377,38 @@ mod tests {
 
         let stmt1 = Parser::new(sql1).parse()?;
         println!("{:?}", stmt1);
+        assert_eq!(
+            stmt1,
+            Statement::CreateTable {
+                name: "tbl1".to_string(),
+                columns: vec![
+                    Column {
+                        name: "a".to_string(),
+                        datatype: DataType::Integer,
+                        nullable: None,
+                        default: Some(Expression::Consts(ast::Consts::Integer(100))),
+                    },
+                    Column {
+                        name: "b".to_string(),
+                        datatype: DataType::Float,
+                        nullable: Some(false),
+                        default: None,
+                    },
+                    Column {
+                        name: "c".to_string(),
+                        datatype: DataType::String,
+                        nullable: Some(true),
+                        default: None,
+                    },
+                    Column {
+                        name: "d".to_string(),
+                        datatype: DataType::Boolean,
+                        nullable: None,
+                        default: Some(Expression::Consts(ast::Consts::Boolean(true))),
+                    },
+                ],
+            }
+        );
 
         Ok(())
     }
@@ -328,7 +427,10 @@ mod tests {
         assert!(stmt1_or_err.is_err());
         match stmt1_or_err {
             Ok(_) => println!("ok"),
-            Err(e) => println!("err: {}", e),
+            Err(e) => {
+                println!("err: {}", e);
+                assert_eq!(e.to_string(), "[Parser] Unexpected token: tabl");
+            }
         }
 
         Ok(())
@@ -348,7 +450,10 @@ mod tests {
         assert!(stmt1_or_err.is_err());
         match stmt1_or_err {
             Ok(stmt) => println!("{:?}", stmt),
-            Err(e) => println!("err: {}", e),
+            Err(e) => {
+                println!("err: {}", e);
+                assert_eq!(e.to_string(), "[Parser] Unexpected token CREATE");
+            }
         }
 
         Ok(())
@@ -359,11 +464,20 @@ mod tests {
         let sql1 = "
             insert into tbl1 values (1, 2.0, 'hello', true);
         ";
-        let stmt1_or_err = Parser::new(sql1).parse();
-        match stmt1_or_err {
-            Ok(stmt) => println!("{:?}", stmt),
-            Err(e) => println!("err: {}", e),
-        }
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Insert {
+                table_name: "tbl1".to_string(),
+                columns: None,
+                values: vec![vec![
+                    Expression::Consts(ast::Consts::Integer(1)),
+                    Expression::Consts(ast::Consts::Float(2.0)),
+                    Expression::Consts(ast::Consts::String("hello".to_string())),
+                    Expression::Consts(ast::Consts::Boolean(true)),
+                ]]
+            }
+        );
 
         Ok(())
     }
@@ -373,11 +487,25 @@ mod tests {
         let sql1 = "
             insert into tbl1 (a, b, c, d) values (1, 2.0, 'hello', true);
         ";
-        let stmt1_or_err = Parser::new(sql1).parse();
-        match stmt1_or_err {
-            Ok(stmt) => println!("{:?}", stmt),
-            Err(e) => println!("err: {}", e),
-        }
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Insert {
+                table_name: "tbl1".to_string(),
+                columns: Some(vec![
+                    "a".to_string(),
+                    "b".to_string(),
+                    "c".to_string(),
+                    "d".to_string(),
+                ]),
+                values: vec![vec![
+                    Expression::Consts(ast::Consts::Integer(1)),
+                    Expression::Consts(ast::Consts::Float(2.0)),
+                    Expression::Consts(ast::Consts::String("hello".to_string())),
+                    Expression::Consts(ast::Consts::Boolean(true)),
+                ]]
+            }
+        );
 
         Ok(())
     }
@@ -387,11 +515,33 @@ mod tests {
         let sql1 = "
             insert into tbl1 (a, b, c, d) values (1, 2.0, 'hello', true), (1, 2.0, 'hello', true);
         ";
-        let stmt1_or_err = Parser::new(sql1).parse();
-        match stmt1_or_err {
-            Ok(stmt) => println!("{:?}", stmt),
-            Err(e) => println!("err: {}", e),
-        }
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Insert {
+                table_name: "tbl1".to_string(),
+                columns: Some(vec![
+                    "a".to_string(),
+                    "b".to_string(),
+                    "c".to_string(),
+                    "d".to_string(),
+                ]),
+                values: vec![
+                    vec![
+                        Expression::Consts(ast::Consts::Integer(1)),
+                        Expression::Consts(ast::Consts::Float(2.0)),
+                        Expression::Consts(ast::Consts::String("hello".to_string())),
+                        Expression::Consts(ast::Consts::Boolean(true)),
+                    ],
+                    vec![
+                        Expression::Consts(ast::Consts::Integer(1)),
+                        Expression::Consts(ast::Consts::Float(2.0)),
+                        Expression::Consts(ast::Consts::String("hello".to_string())),
+                        Expression::Consts(ast::Consts::Boolean(true)),
+                    ]
+                ]
+            }
+        );
 
         Ok(())
     }
@@ -401,11 +551,13 @@ mod tests {
         let sql1 = "
             select * from tbl1;
         ";
-        let stmt1_or_err = Parser::new(sql1).parse();
-        match stmt1_or_err {
-            Ok(stmt) => println!("{:?}", stmt),
-            Err(e) => println!("err: {}", e),
-        }
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                table_name: "tbl1".to_string(),
+            }
+        );
 
         Ok(())
     }

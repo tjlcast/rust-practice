@@ -217,7 +217,7 @@ impl<'a> Lexer<'a> {
 
     // 只有是 Token 类型，才能跳转下一个，并返回 Token
     fn next_if_token<F: Fn(char) -> Option<Token>>(&mut self, predicate: F) -> Option<Token> {
-        let mut value = self.iter.peek().and_then(|c| predicate(*c))?;
+        let value = self.iter.peek().and_then(|c| predicate(*c))?;
         self.iter.next();
         Some(value)
     }
