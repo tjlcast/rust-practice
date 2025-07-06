@@ -1,4 +1,3 @@
-use std::sync::Condvar;
 
 use crate::sql::parser::ast::{Consts, Expression};
 
@@ -30,3 +29,5 @@ impl Value {
         }
     }
 }
+
+pub type Row = Vec<Value>;
