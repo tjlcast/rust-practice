@@ -1,6 +1,6 @@
 use schema::CreateTable;
 
-use crate::error::Result;
+use crate::{error::Result, sql::executor::query::Scan};
 
 use super::{plan::Node, types::Row};
 
@@ -22,7 +22,7 @@ impl dyn Executor {
                 columns,
                 values,
             } => todo!(),
-            Node::Scan { table_name } => todo!(),
+            Node::Scan { table_name } => Scan::new(table_name),
         }
     }
 }
