@@ -1,0 +1,16 @@
+[package]
+name = "memory-kv-store"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "memory_kv_store" 
+crate-type = ["cdylib", "rlib"]   # cdylib 用于 Python 动态库
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+
+[features]
+default = []
+python = []
+
