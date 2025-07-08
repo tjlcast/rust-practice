@@ -1,7 +1,9 @@
+use crate::{error::Result, sql::{executor::ResultSet, parser::Parser}};
+
 pub trait Engine: Clone {
     type Transaction: Transaction;
 
-    fn begin(&self) -> Result<Session<Self>>;
+    fn begin(&self) -> Result<Self::Transaction>;
 
     fn session(&self) -> Result<Session<Self>> {
         Ok(Session {
@@ -20,5 +22,31 @@ pub trait Transaction {
     fn rollback(&self) -> Result<()>;
 
     // 创建行
-    fn create_row(&mut self, table: String, row )
+    fn create_row(&mut self, table: String, row: Row) -> Result<()>;
+
+    // 扫描表
+    fn scan_table(&self, table_name: String) -> Result<Vec<Row>>>;
+
+    // DDL 相关操作
+    fn create_table(&mut self, table: Table) -> Result<()>;
+
+    // 获取表信息
+    fn get_table(&self, table_name: String) -> Result<Option<Table>>;
+}
+
+
+// 客户端 session 定义
+pub struct Session<E: Engine> {
+    engine: E,
+}
+
+impl<E: Engine> Session<E> {
+    pub fn execute(&mut self, sql: &str) -> Result<ResultSet> {
+        match Parser::new(sql).parse() ? {
+            stmt => {
+                let mut txn = self.engine.begin()?;
+                Plan::build(stmt);
+            }
+        }
+    }
 }
