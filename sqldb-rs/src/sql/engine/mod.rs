@@ -1,5 +1,14 @@
-use crate::{error::Result, sql::{executor::ResultSet, parser::Parser}};
+mod kv;
 
+use crate::{
+    error::Result,
+    sql::{executor::ResultSet, parser::Parser, plan::Plan, schema::Table, types::Row},
+};
+
+/*
+通用SQL-Engine（抽象）
+打开一个会话（固定），这个会话打开一个事务（抽象），执行SQL语句，提交事务，关闭会话
+*/
 pub trait Engine: Clone {
     type Transaction: Transaction;
 
@@ -9,6 +18,32 @@ pub trait Engine: Clone {
         Ok(Session {
             engine: self.clone(),
         })
+    }
+}
+
+// 客户端 session 定义
+pub struct Session<E: Engine> {
+    engine: E,
+}
+
+impl<E: Engine> Session<E> {
+    pub fn execute(&mut self, sql: &str) -> Result<ResultSet> {
+        match Parser::new(sql).parse()? {
+            stmt => {
+                let mut txn = self.engine.begin()?;
+
+                match Plan::build(stmt).execute(&mut txn) {
+                    Ok(result) => {
+                        txn.commit()?;
+                        Ok(result)
+                    }
+                    Err(err) => {
+                        txn.rollback()?;
+                        Err(err)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -25,28 +60,11 @@ pub trait Transaction {
     fn create_row(&mut self, table: String, row: Row) -> Result<()>;
 
     // 扫描表
-    fn scan_table(&self, table_name: String) -> Result<Vec<Row>>>;
+    fn scan_table(&self, table_name: String) -> Result<Vec<Row>>;
 
     // DDL 相关操作
     fn create_table(&mut self, table: Table) -> Result<()>;
 
     // 获取表信息
     fn get_table(&self, table_name: String) -> Result<Option<Table>>;
-}
-
-
-// 客户端 session 定义
-pub struct Session<E: Engine> {
-    engine: E,
-}
-
-impl<E: Engine> Session<E> {
-    pub fn execute(&mut self, sql: &str) -> Result<ResultSet> {
-        match Parser::new(sql).parse() ? {
-            stmt => {
-                let mut txn = self.engine.begin()?;
-                Plan::build(stmt);
-            }
-        }
-    }
 }

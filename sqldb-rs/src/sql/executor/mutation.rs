@@ -1,4 +1,9 @@
-use crate::sql::parser::ast::Expression;
+use crate::error::Result;
+use crate::sql::{
+    engine::Transaction,
+    executor::{Executor, ResultSet},
+    parser::ast::Expression,
+};
 
 pub struct Insert {
     table_name: String,
@@ -17,5 +22,12 @@ impl Insert {
             columns,
             values,
         })
+    }
+}
+
+impl<T: Transaction> Executor<T> for Insert {
+    fn execute(&self, txn: &mut T) -> Result<ResultSet> {
+        // TODO: implement insert
+        todo!()
     }
 }
