@@ -35,10 +35,12 @@ pub enum Node {
 pub struct Plan(pub Node);
 
 impl Plan {
+    // 使用 AST 创建一个 Plan（其中有一个node）
     pub fn build(stmt: ast::Statement) -> Self {
         Planner::new().build(stmt)
     }
 
+    // 当这个 PLAN 执行的时候，获取其中的 Node，构建一个执行器(构建的时候进行类型自适应构建)并执行
     pub fn execute<T: Transaction>(self, txn: &mut T) -> Result<ResultSet> {
         <dyn Executor<T>>::build(self.0).execute(txn)
     }
