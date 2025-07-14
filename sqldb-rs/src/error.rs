@@ -1,14 +1,18 @@
+use std::sync::PoisonError;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     Parse(String),
+    Internal(String),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Parse(e) => write!(f, "{}", e),
+            Error::Internal(e) => write!(f, "{}", e),
         }
     }
 }
@@ -24,5 +28,11 @@ impl From<std::num::ParseIntError> for Error {
 impl From<std::num::ParseFloatError> for Error {
     fn from(value: std::num::ParseFloatError) -> Self {
         Error::Parse(value.to_string())
+    }
+}
+
+impl<T> From<PoisonError<T>> for Error {
+    fn from(value: PoisonError<T>) -> Self {
+        Error::Internal(value.to_string())
     }
 }
