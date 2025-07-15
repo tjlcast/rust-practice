@@ -310,10 +310,7 @@ mod tests {
     use super::*;
     use crate::{
         error::Result,
-        sql::{
-            parser::ast::{Expression, Statement},
-            types::Value,
-        },
+        sql::parser::ast::{Expression, Statement},
     };
 
     #[test]
