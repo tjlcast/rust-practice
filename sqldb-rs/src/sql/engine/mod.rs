@@ -1,7 +1,7 @@
 mod kv;
 
 use crate::{
-    error::Result,
+    error::{Error, Result},
     sql::{executor::ResultSet, parser::Parser, plan::Plan, schema::Table, types::Row},
 };
 
@@ -67,4 +67,13 @@ pub trait Transaction {
 
     // 获取表信息
     fn get_table(&self, table_name: String) -> Result<Option<Table>>;
+
+    // 获取表的信息，不存在则报错
+    fn must_get_table(&self, table_name: String) -> Result<Table> {
+        let t_table_name = table_name.clone();
+        self.get_table(table_name)?.ok_or(Error::Internal(format!(
+            "table {} does not exist",
+            t_table_name
+        )))
+    }
 }

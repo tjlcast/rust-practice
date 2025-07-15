@@ -1,3 +1,4 @@
+use bincode::serialize;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -41,11 +42,11 @@ impl<E: StorageEngine> KVTransaction<E> {
 
 impl<E: StorageEngine> Transaction for KVTransaction<E> {
     fn commit(&self) -> Result<()> {
-        todo!()
+        Ok(())
     }
 
     fn rollback(&self) -> Result<()> {
-        todo!()
+        Ok(())
     }
 
     fn create_row(&mut self, table: String, row: Row) -> Result<()> {
@@ -75,11 +76,19 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
 
         let key = Key::Table(table.name.clone());
         let value = bincode::serialize(&table)?;
-        self.txn.set(bincode::serialize(&key)?, value)
+        self.txn.set(bincode::serialize(&key)?, value)?;
+
+        Ok(())
     }
 
     fn get_table(&self, table_name: String) -> Result<Option<Table>> {
-        todo!()
+        let key = Key::Table(table_name);
+        let v = self
+            .txn
+            .get(bincode::serialize(&key)?)?
+            .map(|bytes| bincode::deserialize(&bytes))
+            .transpose()?;
+        Ok(v)
     }
 }
 
