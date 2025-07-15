@@ -57,7 +57,7 @@ pub trait Transaction {
     fn rollback(&self) -> Result<()>;
 
     // 创建行
-    fn create_row(&mut self, table: String, row: Row) -> Result<()>;
+    fn create_row(&mut self, table_name: String, row: Row) -> Result<()>;
 
     // 扫描表
     fn scan_table(&self, table_name: String) -> Result<Vec<Row>>;

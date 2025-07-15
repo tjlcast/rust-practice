@@ -1,4 +1,3 @@
-use bincode::serialize;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -8,10 +7,19 @@ use crate::sql::engine::Engine;
 use crate::sql::engine::Transaction;
 use crate::sql::schema::Table;
 use crate::sql::types::Row;
+use crate::sql::types::Value;
 use crate::storage::{self, engine::Engine as StorageEngine};
 
 pub struct KVEngine<E: StorageEngine> {
     pub kv: storage::mvcc::Mvcc<E>,
+}
+
+impl<E: StorageEngine> KVEngine<E> {
+    pub fn new(engine: E) -> Self {
+        Self {
+            kv: storage::mvcc::Mvcc::new(engine),
+        }
+    }
 }
 
 impl<E: StorageEngine> Clone for KVEngine<E> {
@@ -49,12 +57,46 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
         Ok(())
     }
 
-    fn create_row(&mut self, table: String, row: Row) -> Result<()> {
-        todo!()
+    fn create_row(&mut self, table_name: String, row: Row) -> Result<()> {
+        let table = self.must_get_table(table_name.clone())?;
+        // 校验行的有效性
+        for (i, col) in table.columns.iter().enumerate() {
+            match row[i].datatype() {
+                None if col.nullable => {}
+                None => {
+                    return Err(Error::Internal(format!(
+                        "column {} is not nullable",
+                        col.name
+                    )));
+                }
+                Some(dt) if dt != col.datatype => {
+                    return Err(Error::Internal(format!(
+                        "column {} has wrong type",
+                        col.name
+                    )));
+                }
+                _ => {}
+            }
+        }
+
+        // 存储数据
+        // 暂时以第一列作为主键，一行数据的唯一标志, todo
+        let id = Key::Row(table_name.clone(), row[0].clone());
+        let value = bincode::serialize(&row)?;
+        self.txn.set(bincode::serialize(&id)?, value)?;
+
+        Ok(())
     }
 
     fn scan_table(&self, table_name: String) -> Result<Vec<Row>> {
-        todo!()
+        let mut rows = Vec::new();
+        let prefix = KeyPrefix::Row(table_name.clone());
+        let results = self.txn.scan_prefix(bincode::serialize(&prefix)?)?;
+        for result in results {
+            let row: Row = bincode::deserialize(&result.value)?;
+            rows.push(row);
+        }
+        Ok(rows)
     }
 
     fn create_table(&mut self, table: Table) -> Result<()> {
@@ -95,5 +137,31 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
 #[derive(Debug, Serialize, Deserialize)]
 enum Key {
     Table(String),
-    Row(String, String),
+    Row(String, Value),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+enum KeyPrefix {
+    Table, // 对齐 枚举 Key，序列化占位
+    Row(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::KVEngine;
+    use crate::{error::Result, sql::engine::Engine, storage::memory::MemoryEngine};
+
+    #[test]
+    fn test_create_table() -> Result<()> {
+        let kv_engine = KVEngine::new(MemoryEngine::new());
+        let mut session = kv_engine.session()?;
+
+        session.execute("create table t1 (a int, b text, c integer);")?;
+        session.execute("insert into t1 values(1, 'a', 1);")?;
+
+        let v1 = session.execute("select * from t1;")?;
+
+        println!("{:?}", v1);
+        Ok(())
+    }
 }

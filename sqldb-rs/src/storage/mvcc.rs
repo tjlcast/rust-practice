@@ -4,6 +4,7 @@ use super::engine::Engine;
 use crate::error::Result;
 
 pub struct Mvcc<E: Engine> {
+    // 这里是 storage_engine
     engine: Arc<Mutex<E>>,
 }
 

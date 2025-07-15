@@ -20,12 +20,13 @@ pub trait Executor<T: Transaction> {
 }
 
 // 执行结果集
+#[derive(Debug)]
 pub enum ResultSet {
     CreateTable { table_name: String },
 
     Insert { count: usize },
 
-    Scan { columns: Vec<String>, row: Vec<Row> },
+    Scan { columns: Vec<String>, rows: Vec<Row> },
 }
 
 impl<T: Transaction> dyn Executor<T> {
