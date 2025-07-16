@@ -264,8 +264,12 @@ impl<'a> Lexer<'a> {
             value.push(c);
         }
 
-        let res: Token =
-            Keyword::from_str(&value).map_or(Token::Ident(value.to_lowercase()), Token::Keyword);
+        let res: Token = Keyword::from_str(&value) // 尝试将字符串解析为关键字
+            .map_or(
+                // 如果解析失败，使用默认值
+                Token::Ident(value.to_lowercase()), // 失败时返回标识符（转为小写）
+                Token::Keyword,                     // 成功时返回关键字枚举
+            );
 
         Ok(Some(res))
     }

@@ -11,13 +11,13 @@ use crate::sql::types::Value;
 use crate::storage::{self, engine::Engine as StorageEngine};
 
 pub struct KVEngine<E: StorageEngine> {
-    pub kv: storage::mvcc::Mvcc<E>,
+    pub storage_mvcc: storage::mvcc::Mvcc<E>,
 }
 
 impl<E: StorageEngine> KVEngine<E> {
     pub fn new(engine: E) -> Self {
         Self {
-            kv: storage::mvcc::Mvcc::new(engine),
+            storage_mvcc: storage::mvcc::Mvcc::new(engine),
         }
     }
 }
@@ -25,7 +25,7 @@ impl<E: StorageEngine> KVEngine<E> {
 impl<E: StorageEngine> Clone for KVEngine<E> {
     fn clone(&self) -> Self {
         Self {
-            kv: self.kv.clone(),
+            storage_mvcc: self.storage_mvcc.clone(),
         }
     }
 }
@@ -34,7 +34,7 @@ impl<E: StorageEngine> Engine for KVEngine<E> {
     type Transaction = KVTransaction<E>;
 
     fn begin(&self) -> Result<Self::Transaction> {
-        Ok(Self::Transaction::new(self.kv.begin()?))
+        Ok(Self::Transaction::new(self.storage_mvcc.begin()?))
     }
 }
 
@@ -159,9 +159,9 @@ mod tests {
         session.execute("create table t1 (a int, b text, c integer);")?;
         session.execute("insert into t1 values(1, 'a', 1);")?;
 
-        let v1 = session.execute("select * from t1;")?;
+        let select_result = session.execute("select * from t1;")?;
 
-        println!("{:?}", v1);
+        println!("select_result: {:?}", select_result);
         Ok(())
     }
 }
