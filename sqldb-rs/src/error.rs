@@ -46,3 +46,10 @@ impl From<Box<ErrorKind>> for Error {
         Error::Internal(value.to_string())
     }
 }
+
+// 将 std::io::Error（IO 错误）自动转换为自定义的 Error::Internal 类型
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Error::Internal(value.to_string())
+    }
+}
