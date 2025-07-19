@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    env,
     fs::{File, OpenOptions},
     io::{BufReader, BufWriter, Read, Seek, Write},
     path::PathBuf,
@@ -21,8 +22,52 @@ pub struct DiskEngine {
 impl DiskEngine {
     pub fn new(file_path: PathBuf) -> Result<Self> {
         let mut log = Log::new(file_path)?;
+        // 从 log 中去恢复的 keydir
         let keydir = log.build_keydir()?;
         Ok(Self { keydir, log })
+    }
+
+    pub fn new_compact(file_path: PathBuf) -> Result<Self> {
+        let mut eng = Self::new(file_path)?;
+        eng.compact()?;
+        Ok(eng)
+    }
+
+    fn compact(&mut self) -> Result<()> {
+        // 新打开一个临时日志文件
+        let mut new_path = self.log.file_path.clone();
+        new_path.set_extension("compact");
+
+        let mut new_log = Log::new(new_path)?;
+        let mut new_keydir = KeyDir::new();
+
+        // 重写数据到临时文件中
+        for (key, (offset, val_size)) in self.keydir.iter() {
+            // 读取 value
+            let value = self.log.read_value(*offset, *val_size)?;
+            // 写入新的临时log文件中
+            let (new_offset, new_size) = new_log.write_entry(key, Some(&value))?;
+            // 写入新的 keydir 中
+            // new_keydir.insert(
+            //     key,
+            //     (new_offset + new_size as u64 - val_size as u64, val_size),
+            // );
+            new_keydir.insert(
+                key.clone(),
+                (new_offset + new_size as u64 - *val_size as u64, *val_size),
+            );
+        }
+
+        // 将临时文件更改为正式文件
+        // std::fs::rename(new_log.file_path, self.log.file_path);
+        std::fs::rename(&new_log.file_path, &self.log.file_path);
+
+        // new_log.file_path = self.log.file_path;
+        new_log.file_path = self.log.file_path.clone();
+        self.keydir = new_keydir;
+        self.log = new_log;
+
+        Ok(())
     }
 }
 
@@ -90,6 +135,7 @@ impl DoubleEndedIterator for DiskEngineIterator {
 }
 
 struct Log {
+    file_path: PathBuf,
     file: std::fs::File,
 }
 
@@ -107,20 +153,20 @@ impl Log {
             .create(true)
             .read(true)
             .write(true)
-            .open(file_path)?;
+            .open(&file_path)?;
 
         // 加文件锁，保证同时只能有一个服务去使用这个文件
         // 使用第三库 fs4
         file.try_lock_exclusive()?;
 
-        Ok(Self { file })
+        Ok(Self { file, file_path })
     }
 
     // 遍历数据文件，构建内存索引
     fn build_keydir(&mut self) -> Result<KeyDir> {
         let mut keydir = KeyDir::new();
         let file_size = self.file.metadata()?.len();
-        let mut buf_reader = BufReader::new(&self.file);
+        let mut buf_reader: BufReader<&File> = BufReader::new(&self.file);
 
         let mut offset = 0;
         loop {
@@ -137,8 +183,8 @@ impl Log {
                 keydir.insert(
                     key,
                     (
-                        offset + (LOG_HEADER_SIZE + key_size) as u64,
-                        val_size as u32,
+                        offset + (LOG_HEADER_SIZE + key_size) as u64, // 这里存储的是 value 的偏移量
+                        val_size as u32,                              // 这里存储的是 value 的大小
                     ),
                 );
                 offset += LOG_HEADER_SIZE as u64 + key_size as u64 + val_size as u64;
@@ -178,21 +224,30 @@ impl Log {
     }
 
     fn read_entry(buf_reader: &mut BufReader<&File>, offset: u64) -> Result<(Vec<u8>, i32)> {
-        buf_reader.seek(std::io::SeekFrom::Start(offset));
+        buf_reader.seek(std::io::SeekFrom::Start(offset))?;
         let mut len_buf = [0; 4];
 
         // 读取 key size
-        buf_reader.read_exact(&mut len_buf);
+        buf_reader.read_exact(&mut len_buf)?;
         let key_size = u32::from_be_bytes(len_buf);
 
         // 读取 value size
-        buf_reader.read_exact(&mut len_buf);
+        buf_reader.read_exact(&mut len_buf)?;
         let val_size = i32::from_be_bytes(len_buf);
 
         // 读取 key
         let mut key = vec![0; key_size as usize];
-        buf_reader.read_exact(&mut key);
+        buf_reader.read_exact(&mut key)?;
 
         Ok((key, val_size))
     }
+}
+
+#[test]
+fn test_disk_engine_start() -> Result<()> {
+    let temp_dir = env::temp_dir();
+    let db_path = temp_dir.join("rocksdb");
+    println!("path: {:?}", db_path);
+    DiskEngine::new(db_path)?;
+    Ok(())
 }
