@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, btree_map},
     env,
     fs::{File, OpenOptions},
     io::{BufReader, BufWriter, Read, Seek, Write},
@@ -14,6 +14,7 @@ use crate::{error::Result, storage::engine::EngineIterator};
 
 const LOG_HEADER_SIZE: u32 = 8;
 
+// 磁盘存储引擎定义
 pub struct DiskEngine {
     keydir: KeyDir,
     log: Log,
@@ -28,11 +29,12 @@ impl DiskEngine {
     }
 
     pub fn new_compact(file_path: PathBuf) -> Result<Self> {
-        let mut eng = Self::new(file_path)?;
+        let mut eng: DiskEngine = Self::new(file_path)?;
         eng.compact()?;
         Ok(eng)
     }
 
+    // 使用 keydir 的信息构建新的临时 keydir 和 log 文件
     fn compact(&mut self) -> Result<()> {
         // 新打开一个临时日志文件
         let mut new_path = self.log.file_path.clone();
@@ -72,7 +74,7 @@ impl DiskEngine {
 }
 
 impl super::engine::Engine for DiskEngine {
-    type EngineIterator<'a> = DiskEngineIterator;
+    type EngineIterator<'a> = DiskEngineIterator<'a>;
 
     fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> Result<()> {
         // 先写日志记录
@@ -112,25 +114,39 @@ impl super::engine::Engine for DiskEngine {
     }
 
     fn scan(&mut self, range: impl std::ops::RangeBounds<Vec<u8>>) -> Self::EngineIterator<'_> {
-        todo!()
+        DiskEngineIterator {
+            inner: self.keydir.range(range),
+            log: &mut self.log,
+        }
     }
 }
 
-pub struct DiskEngineIterator {}
+pub struct DiskEngineIterator<'a> {
+    inner: btree_map::Range<'a, Vec<u8>, (u64, u32)>,
+    log: &'a mut Log,
+}
 
-impl EngineIterator for DiskEngineIterator {}
+impl<'a> DiskEngineIterator<'a> {
+    fn map(&mut self, item: (&Vec<u8>, &(u64, u32))) -> <Self as Iterator>::Item {
+        let (k, (offset, val_size)) = item;
+        let value: Vec<u8> = self.log.read_value(*offset, *val_size)?;
+        Ok((k.clone(), value))
+    }
+}
 
-impl Iterator for DiskEngineIterator {
+impl<'a> EngineIterator for DiskEngineIterator<'a> {}
+
+impl<'a> Iterator for DiskEngineIterator<'a> {
     type Item = Result<(Vec<u8>, Vec<u8>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        self.inner.next().map(|item| self.map(item))
     }
 }
 
-impl DoubleEndedIterator for DiskEngineIterator {
+impl<'a> DoubleEndedIterator for DiskEngineIterator<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        todo!()
+        self.inner.next_back().map(|item| self.map(item))
     }
 }
 
@@ -183,8 +199,8 @@ impl Log {
                 keydir.insert(
                     key,
                     (
-                        offset + (LOG_HEADER_SIZE + key_size) as u64, // 这里存储的是 value 的偏移量
-                        val_size as u32,                              // 这里存储的是 value 的大小
+                        offset + LOG_HEADER_SIZE as u64 + key_size as u64, // 这里存储的是 value 的偏移量
+                        val_size as u32, // 这里存储的是 value 的大小
                     ),
                 );
                 offset += LOG_HEADER_SIZE as u64 + key_size as u64 + val_size as u64;
@@ -196,11 +212,32 @@ impl Log {
 }
 
 impl Log {
+    /// 在日志文件末尾追加一条记录。
+    ///
+    /// # 说明
+    /// 1. 先把文件游标移动到文件末尾，得到当前偏移量 `offset`。
+    /// 2. 计算 key 和 value（可为空）的字节长度，得到整条记录的总长度 `total_size`。
+    /// 3. 按顺序写入：
+    ///    - key 长度（u32，大端）
+    ///    - value 长度（i32，大端；若 value 为 `None` 则写 `-1`）
+    ///    - key 本身
+    ///    - value（若存在）
+    /// 4. 立即 flush，保证数据落盘。
+    ///
+    /// # 参数
+    /// - `key`:   要写入的键，以 `&Vec<u8>` 形式传入。
+    /// - `value`: 要写入的值，可为空（`Option<&Vec<u8>>`）。
+    ///
+    /// # 返回
+    /// 成功时返回一个元组 `(offset, total_size)`：
+    /// - `offset`: 该条记录在整个日志文件中的起始字节偏移量。
+    /// - `total_size`: 该条记录占用的总字节数（包含头部）。
+    ///
     fn write_entry(&mut self, key: &Vec<u8>, value: Option<&Vec<u8>>) -> Result<(u64, u32)> {
         // 首先把文件偏移移动到文件末尾
         let offset = self.file.seek(std::io::SeekFrom::End(0))?;
         let key_size = key.len() as u32;
-        let val_size = value.map_or(0, |v| v.len()) as u32;
+        let val_size = value.map_or(0, |v| v.len() as u32);
         let total_size = LOG_HEADER_SIZE + key_size + val_size;
 
         // 分别写入 key size, value size, key, value
@@ -216,6 +253,22 @@ impl Log {
         Ok((offset, total_size))
     }
 
+    /// Reads a value of specified size from a given offset in the file.
+    ///
+    /// # Arguments
+    /// * `offset` - The position in the file (in bytes) from where to start reading.
+    /// * `val_size` - The number of bytes to read.
+    ///
+    /// # Returns
+    /// - `Ok(Vec<u8>)` containing the read bytes if successful
+    /// - `Err` if either seeking to the offset or reading fails
+    ///
+    /// # Errors
+    /// This function will return an error if:
+    /// - The seek operation fails (invalid offset)
+    /// - The read operation fails (not enough bytes available or other I/O error)
+    /// - The file handle has been closed or is otherwise inaccessible
+    ///
     fn read_value(&mut self, offset: u64, val_size: u32) -> Result<Vec<u8>> {
         self.file.seek(std::io::SeekFrom::Start(offset))?;
         let mut buf = vec![0; val_size as usize];
@@ -223,6 +276,29 @@ impl Log {
         Ok(buf)
     }
 
+    /// Reads a key-value entry from a buffered file reader at a specific offset.
+    ///
+    /// The entry is expected to be stored in the following binary format:
+    /// 1. 4-byte big-endian key size (u32)
+    /// 2. 4-byte big-endian value size (i32)
+    /// 3. Key data (bytes)
+    /// (Note: The actual value data is not read by this function)
+    ///
+    /// # Arguments
+    /// * `buf_reader` - A buffered reader for the file containing the entries
+    /// * `offset` - The byte offset in the file where the entry begins
+    ///
+    /// # Returns
+    /// - `Ok((Vec<u8>, i32))` containing (key_bytes, value_size) if successful
+    /// - `Err` if any I/O operation fails or if the data is malformed
+    ///
+    /// # Errors
+    /// This function will return an error if:
+    /// - Seeking to the specified offset fails
+    /// - Reading either the key size or value size fails
+    /// - Reading the key bytes fails
+    /// - The file ends unexpectedly during reading
+    ///
     fn read_entry(buf_reader: &mut BufReader<&File>, offset: u64) -> Result<(Vec<u8>, i32)> {
         buf_reader.seek(std::io::SeekFrom::Start(offset))?;
         let mut len_buf = [0; 4];
