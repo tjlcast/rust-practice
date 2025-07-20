@@ -60,7 +60,7 @@ impl DiskEngine {
 
         // 将临时文件更改为正式文件
         // std::fs::rename(new_log.file_path, self.log.file_path);
-        std::fs::rename(&new_log.file_path, &self.log.file_path);
+        std::fs::rename(&new_log.file_path, &self.log.file_path)?;
 
         // new_log.file_path = self.log.file_path;
         new_log.file_path = self.log.file_path.clone();
