@@ -1,0 +1,35 @@
+name: Build and Release WASM
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        profile: minimal
+        override: true
+    
+    - name: Install wasm-bindgen
+      run: cargo install wasm-bindgen-cli
+    
+    - name: Build
+      run: |
+        cargo build --target wasm32-unknown-unknown --release
+        wasm-bindgen --out-dir ./pkg --target web --no-typescript ./target/wasm32-unknown-unknown/release/rust_wasm_example.wasm
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: wasm-pkg
+        path: ./pkg

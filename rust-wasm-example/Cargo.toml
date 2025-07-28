@@ -1,0 +1,10 @@
+[package]
+name = "rust-wasm-example"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]  # 这很重要，表示我们要生成动态库
+
+[dependencies]
+wasm-bindgen = "0.2"  # 用于 JavaScript 和 WASM 交互
