@@ -1,11 +1,11 @@
 use std::{
     collections::{BTreeMap, btree_map},
-    env,
     fs::{File, OpenOptions},
     io::{BufReader, BufWriter, Read, Seek, Write},
     path::PathBuf,
 };
 
+// <key_binary, (file_value_binary_offset, val_binary_size)>
 pub type KeyDir = BTreeMap<Vec<u8>, (u64, u32)>;
 
 use fs4::FileExt;
@@ -17,6 +17,9 @@ const LOG_HEADER_SIZE: u32 = 8;
 // 磁盘存储引擎定义
 pub struct DiskEngine {
     keydir: KeyDir,
+    // +-------------+-------------+----------------+----------------+​
+    // | key len(4)    val len(4)     key(varint)       val(varint)  |​
+    // +-------------+-------------+----------------+----------------+
     log: Log,
 }
 
@@ -122,6 +125,7 @@ impl super::engine::Engine for DiskEngine {
 }
 
 pub struct DiskEngineIterator<'a> {
+    // 这里的是 inner 是 keydir 的迭代器
     inner: btree_map::Range<'a, Vec<u8>, (u64, u32)>,
     log: &'a mut Log,
 }
@@ -192,6 +196,7 @@ impl Log {
 
             let (key, val_size) = Self::read_entry(&mut buf_reader, offset)?;
             let key_size = key.len() as u32;
+            // value_size == -1 means the key is deleted
             if val_size == -1 {
                 keydir.remove(&key);
                 offset += key_size as u64 + LOG_HEADER_SIZE as u64;
@@ -238,6 +243,7 @@ impl Log {
         let offset = self.file.seek(std::io::SeekFrom::End(0))?;
         let key_size = key.len() as u32;
         let val_size = value.map_or(0, |v| v.len() as u32);
+        // 这里的 LOG_HEADER_SIZE 是 key_size 和 val_size 的二进制拼接
         let total_size = LOG_HEADER_SIZE + key_size + val_size;
 
         // 分别写入 key size, value size, key, value
@@ -319,11 +325,86 @@ impl Log {
     }
 }
 
-#[test]
-fn test_disk_engine_start() -> Result<()> {
-    let temp_dir = env::temp_dir();
-    let db_path = temp_dir.join("rocksdb");
-    println!("path: {:?}", db_path);
-    DiskEngine::new(db_path)?;
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Result;
+    use crate::storage::engine::Engine;
+
+    fn cleanup_and_build_test_file(file_path_str: &str) -> Result<()> {
+        let test_file_path = PathBuf::from(file_path_str);
+
+        // 检查并处理tmp目录
+        let tmp_dir = test_file_path.parent().unwrap();
+        if tmp_dir.exists() {
+            // 如果目录存在，清空目录中的文件
+            if let Ok(entries) = std::fs::read_dir(tmp_dir) {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let _ = std::fs::remove_file(entry.path());
+                    }
+                }
+            }
+        } else {
+            // 如果目录不存在，创建目录
+            std::fs::create_dir_all(tmp_dir)?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_disk_engine_compact() -> Result<()> {
+        let test_file_name = "tmp/disk_engine";
+        let test_file_path: PathBuf = PathBuf::from(test_file_name);
+
+        cleanup_and_build_test_file(test_file_path.to_str().unwrap())?;
+
+        let mut eng: DiskEngine = DiskEngine::new(test_file_path)?;
+
+        // write some data
+        let _ = eng.set(b"key1".to_vec(), b"value1".to_vec());
+        let _ = eng.set(b"key2".to_vec(), b"value2".to_vec());
+        let _ = eng.set(b"key3".to_vec(), b"value3".to_vec());
+
+        eng.delete(b"key1".to_vec())?;
+        eng.delete(b"key2".to_vec())?;
+
+        // 重写
+        let _ = eng.set(b"aa".to_vec(), b"value1".to_vec());
+        let _ = eng.set(b"aa".to_vec(), b"value2".to_vec());
+        let _ = eng.set(b"aa".to_vec(), b"value3".to_vec());
+        let _ = eng.set(b"bb".to_vec(), b"value4".to_vec());
+        let _ = eng.set(b"bb".to_vec(), b"value5".to_vec());
+
+        let iter = eng.scan(..);
+        let v = iter.collect::<Result<Vec<_>>>()?;
+        assert_eq!(
+            v,
+            vec![
+                (b"aa".to_vec(), b"value3".to_vec()),
+                (b"bb".to_vec(), b"value5".to_vec()),
+                (b"key3".to_vec(), b"value3".to_vec()),
+            ]
+        );
+        drop(eng);
+
+        // 重启测试
+        let mut eng2 = DiskEngine::new_compact(PathBuf::from(test_file_name))?;
+        let iter = eng2.scan(..);
+        let v2 = iter.collect::<Result<Vec<_>>>()?;
+        assert_eq!(
+            v2,
+            vec![
+                (b"aa".to_vec(), b"value3".to_vec()),
+                (b"bb".to_vec(), b"value5".to_vec()),
+                (b"key3".to_vec(), b"value3".to_vec()),
+            ]
+        );
+        drop(eng2);
+
+        std::fs::remove_file(test_file_name)?;
+
+        Ok(())
+    }
 }

@@ -142,7 +142,12 @@ enum Key {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum KeyPrefix {
-    Table, // 对齐 枚举 Key，序列化占位
+    /// 假设我们使用某种前缀编码（如 bincode 或 protobuf），enum 的 tag 会被编码成一个整数，紧跟在后面的才是变体里携带的数据。
+    /// 如果 Key 和 KeyPrefix 共用同一个 tag 0，那么：
+    /// Key::Table("foo") → 0 | "foo"
+    /// KeyPrefix::Table → 0 |（后面没有数据）
+    /// 反序列化器在拿到前缀 0 后，发现后面没有数据，它既可能是“完整的 Key::Table（但数据缺失，报错）”，也可能是“KeyPrefix::Table”。二者无法区分。
+    Table, // 对齐 枚举 Key，序列化占位 (Key::Table(s) 与 KeyPrefix::Table 在序列化后生成的字节前缀 必须不同，否则反序列化时无法区分“这是一个完整的 Key”还是“这是一个前缀”。)
     Row(String),
 }
 
