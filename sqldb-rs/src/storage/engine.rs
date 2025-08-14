@@ -29,6 +29,7 @@ pub trait Engine {
         }
         let end = Bound::Excluded(bound_prefix);
 
+        // 注意这里scan是利用了BtreeMap的range方法，并且BTreeMap的key是字典序（字节序）排序的。类似于字符串的比较方式
         self.scan((start, end))
     }
 }
