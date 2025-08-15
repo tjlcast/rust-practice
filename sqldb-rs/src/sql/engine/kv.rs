@@ -50,10 +50,12 @@ impl<E: StorageEngine> KVTransaction<E> {
 
 impl<E: StorageEngine> Transaction for KVTransaction<E> {
     fn commit(&self) -> Result<()> {
+        self.txn.commit()?;
         Ok(())
     }
 
     fn rollback(&self) -> Result<()> {
+        self.txn.rollback()?;
         Ok(())
     }
 

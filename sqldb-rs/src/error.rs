@@ -8,6 +8,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     Parse(String),
     Internal(String),
+    WriteConflict,
 }
 
 impl std::fmt::Display for Error {
@@ -15,6 +16,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::Parse(e) => write!(f, "{}", e),
             Error::Internal(e) => write!(f, "{}", e),
+            Error::WriteConflict => write!(f, "Write Conflict"),
         }
     }
 }
