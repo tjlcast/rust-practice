@@ -1,6 +1,7 @@
-use std::sync::PoisonError;
+use std::{fmt::Display, sync::PoisonError};
 
 use bincode::ErrorKind;
+use serde::{de, ser};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -11,15 +12,15 @@ pub enum Error {
     WriteConflict,
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Parse(e) => write!(f, "{}", e),
-            Error::Internal(e) => write!(f, "{}", e),
-            Error::WriteConflict => write!(f, "Write Conflict"),
-        }
-    }
-}
+// impl std::fmt::Display for Error {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             Error::Parse(e) => write!(f, "{}", e),
+//             Error::Internal(e) => write!(f, "{}", e),
+//             Error::WriteConflict => write!(f, "Write Conflict"),
+//         }
+//     }
+// }
 
 // 将 std::num::ParseIntError（整数解析错误）自动转换为自定义的 Error::Parse 类型
 impl From<std::num::ParseIntError> for Error {
@@ -53,5 +54,35 @@ impl From<Box<ErrorKind>> for Error {
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Error::Internal(value.to_string())
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl ser::Error for Error {
+    fn custom<T>(msg: T) -> Self
+    where
+        T: Display,
+    {
+        Error::Internal(msg.to_string())
+    }
+}
+
+impl de::Error for Error {
+    fn custom<T>(msg: T) -> Self
+    where
+        T: Display,
+    {
+        Error::Internal(msg.to_string())
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Parse(err) => write!(f, "parse error {}", err),
+            Error::Internal(err) => write!(f, "internal error {}", err),
+            Error::WriteConflict => write!(f, "write conflict, retry transaction"),
+        }
     }
 }
