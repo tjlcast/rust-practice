@@ -60,7 +60,7 @@ impl TransactionState {
 
 // NextVersion: 0
 // TxnActive: 1[100] 1[101] 1[102]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum MvccKey {
     NextVersion,
     TxnActive(Version),

@@ -1,7 +1,5 @@
-use std::{fmt::Display, sync::PoisonError};
-
-use bincode::ErrorKind;
 use serde::{de, ser};
+use std::fmt::Display;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -37,15 +35,15 @@ impl From<std::num::ParseFloatError> for Error {
 }
 
 // 将 std::str::Utf8Error（UTF-8 解析错误）自动转换为自定义的 Error::Parse 类型
-impl<T> From<PoisonError<T>> for Error {
-    fn from(value: PoisonError<T>) -> Self {
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(value: std::sync::PoisonError<T>) -> Self {
         Error::Internal(value.to_string())
     }
 }
 
 // 将 bincode::ErrorKind（bincode 解码错误）自动转换为自定义的 Error::Internal 类型
-impl From<Box<ErrorKind>> for Error {
-    fn from(value: Box<ErrorKind>) -> Self {
+impl From<Box<bincode::ErrorKind>> for Error {
+    fn from(value: Box<bincode::ErrorKind>) -> Self {
         Error::Internal(value.to_string())
     }
 }
@@ -53,6 +51,12 @@ impl From<Box<ErrorKind>> for Error {
 // 将 std::io::Error（IO 错误）自动转换为自定义的 Error::Internal 类型
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
+        Error::Internal(value.to_string())
+    }
+}
+
+impl From<std::array::TryFromSliceError> for Error {
+    fn from(value: std::array::TryFromSliceError) -> Self {
         Error::Internal(value.to_string())
     }
 }
