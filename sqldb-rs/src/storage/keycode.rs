@@ -185,7 +185,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         self.serialize_unit_variant(name, variant_index, variant)?;
-        Ok(self)  // 把自身作为 tuple serializer 返回
+        Ok(self) // 把自身作为 tuple serializer 返回
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
@@ -273,12 +273,50 @@ mod tests {
             assert_eq!(res, v);
         };
 
+        // serialize(&NextVersion)
+        //  → Serializer::serialize_unit_variant("MvccKey", idx=0, "NextVersion")
+        //      └ 写出 variant_index (0)
         ser_cmp(MvccKey::NextVersion, vec![0]);
+
+        // serialize(&TxnActive(1))
+        //   → Serializer::serialize_newtype_variant("MvccKey", idx=1, "TxnActive", &1)
+        //       ├ Serializer::serialize_unit_variant("MvccKey", idx=1, "TxnActive")
+        //       │   └ 写出 variant_index (1)
+        //       └ value.serialize(self)  // 这里 value = 1 (u64)
+        //           → Serializer::serialize_u64(1)
+        //               └ 写出 [0,0,0,0,0,0,0,1]
         ser_cmp(MvccKey::TxnActive(1), vec![1, 0, 0, 0, 0, 0, 0, 0, 1]);
+
+        // serialize(&TxnWrite(1, vec![1,2,3]))
+        //  → Serializer::serialize_tuple_variant("MvccKey", idx=2, "TxnWrite", len=2)
+        //      ├ Serializer::serialize_unit_variant("MvccKey", idx=2, "TxnWrite")
+        //      │   └ 写出 variant_index (2)
+        //      └ 返回一个 &mut Serializer (impl SerializeTupleVariant)
+        //         接下来逐个字段：
+        //         - serialize_field(&1)
+        //             → Serializer::serialize_u64(1)
+        //                 └ 写出 [0,0,0,0,0,0,0,1]
+        //         - serialize_field(&vec![1,2,3])
+        //             → Serializer::serialize_bytes(&[1,2,3])
+        //                 └ 写出 [1,2,3, 0,0]   // 注意 0,0 作为结尾标志
+        //         - end()
         ser_cmp(
             MvccKey::TxnWrite(1, vec![1, 2, 3]),
             vec![2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 0, 0],
         );
+
+        // serialize(&Version(b"abc".to_vec(), 11))
+        //  → Serializer::serialize_tuple_variant("MvccKey", idx=3, "Version", len=2)
+        //      ├ serialize_unit_variant("MvccKey", idx=3, "Version")
+        //      │   └ 写出 variant_index (3)
+        //      └ 返回 SerializeTupleVariant
+        //         - serialize_field(&b"abc".to_vec())
+        //             → Serializer::serialize_bytes(&[97,98,99])
+        //                 └ 写出 [97,98,99, 0,0]   // 按照 0 → [0,255], 结尾补 [0,0]
+        //         - serialize_field(&11)
+        //             → Serializer::serialize_u64(11)
+        //                 └ 写出 [0,0,0,0,0,0,0,11]
+        //         - end()
         ser_cmp(
             MvccKey::Version(b"abc".to_vec(), 11),
             vec![3, 97, 98, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11],
