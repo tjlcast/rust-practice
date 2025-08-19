@@ -426,7 +426,7 @@ mod tests {
             Ok(_) => println!("ok"),
             Err(e) => {
                 println!("err: {}", e);
-                assert_eq!(e.to_string(), "[Parser] Unexpected token: tabl");
+                assert_eq!(e.to_string(), "parse error [Parser] Unexpected token: tabl");
             }
         }
 
@@ -449,7 +449,7 @@ mod tests {
             Ok(stmt) => println!("{:?}", stmt),
             Err(e) => {
                 println!("err: {}", e);
-                assert_eq!(e.to_string(), "[Parser] Unexpected token CREATE");
+                assert_eq!(e.to_string(), "parse error [Parser] Unexpected token CREATE");
             }
         }
 

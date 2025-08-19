@@ -3,7 +3,7 @@ use serde::ser;
 use crate::error::Error;
 use crate::error::Result;
 
-pub fn serialize<T: serde::Serialize>(key: T) -> Result<Vec<u8>> {
+pub fn serialize_key<T: serde::Serialize>(key: T) -> Result<Vec<u8>> {
     let mut ser = Serializer { output: Vec::new() };
     key.serialize(&mut ser)?;
     Ok(ser.output)
@@ -261,14 +261,14 @@ impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
 #[cfg(test)]
 mod tests {
 
-    use super::serialize;
+    use super::serialize_key;
 
     use crate::storage::mvcc::{MvccKey, MvccKeyPrefix};
 
     #[test]
     fn test_encode() {
         let ser_cmp = |k: MvccKey, v: Vec<u8>| {
-            let res = serialize(&k).unwrap();
+            let res = serialize_key(&k).unwrap();
             println!("{:?}", res);
             assert_eq!(res, v);
         };
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn test_encode_prefix() {
         let ser_cmp = |k: MvccKeyPrefix, v: Vec<u8>| {
-            let res = serialize(&k).unwrap();
+            let res = serialize_key(&k).unwrap();
             println!("{:?}", res);
             assert_eq!(res, v);
         };

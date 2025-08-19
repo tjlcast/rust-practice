@@ -169,6 +169,33 @@ mod tests {
         let select_result = session.execute("select * from t1;")?;
 
         println!("select_result: {:?}", select_result);
+
+        // 添加断言验证结果
+        match &select_result {
+            crate::sql::engine::ResultSet::Scan { columns, rows } => {
+                assert_eq!(columns, &["a", "b", "c"]);
+                assert_eq!(rows.len(), 1);
+                let row = &rows[0];
+                assert_eq!(row.len(), 3);
+                assert_eq!(row[0], crate::sql::types::Value::Integer(1));
+                assert_eq!(row[1], crate::sql::types::Value::String("a".to_string()));
+                assert_eq!(row[2], crate::sql::types::Value::Integer(1));
+            }
+            _ => panic!("Expected Scan result, but got: {:?}", select_result),
+        }
+
+        // 构建期望的 ResultSet::Scan 进行比较
+        let expected = crate::sql::engine::ResultSet::Scan {
+            columns: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            rows: vec![vec![
+                crate::sql::types::Value::Integer(1),
+                crate::sql::types::Value::String("a".to_string()),
+                crate::sql::types::Value::Integer(1),
+            ]],
+        };
+
+        assert_eq!(select_result, expected);
+
         Ok(())
     }
 }

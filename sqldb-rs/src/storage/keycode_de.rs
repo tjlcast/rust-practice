@@ -4,12 +4,14 @@ use serde::de::IntoDeserializer;
 use crate::error::Error;
 use crate::error::Result;
 
+// tip: 这里声明了该结构有一个依赖的外部生命周期
 pub struct Deserializer<'de> {
+    // tip: 把外部生命周期绑定到 input 引用上
     input: &'de [u8],
 }
 
 // tip
-pub fn deserialize<'a, T: serde::Deserialize<'a>>(input: &'a [u8]) -> Result<T> {
+pub fn deserialize_key<'a, T: serde::Deserialize<'a>>(input: &'a [u8]) -> Result<T> {
     let mut der = Deserializer { input };
     T::deserialize(&mut der)
 }
@@ -339,7 +341,7 @@ impl<'de, 'a> de::VariantAccess<'de> for &mut Deserializer<'de> {
 #[cfg(test)]
 mod tests {
 
-    use crate::storage::{keycode_de::deserialize, mvcc::MvccKey};
+    use crate::storage::{keycode_de::deserialize_key, mvcc::MvccKey};
 
     #[test]
     fn test_u8_convert() {
@@ -352,7 +354,7 @@ mod tests {
     #[test]
     fn test_decode() {
         let der_cmp = |k: MvccKey, v: Vec<u8>| {
-            let res: MvccKey = deserialize(&v).unwrap();
+            let res: MvccKey = deserialize_key(&v).unwrap();
             assert_eq!(res, k);
         };
 

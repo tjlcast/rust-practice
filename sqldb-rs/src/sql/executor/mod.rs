@@ -20,7 +20,7 @@ pub trait Executor<T: Transaction> {
 }
 
 // 执行结果集
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ResultSet {
     CreateTable { table_name: String },
 
