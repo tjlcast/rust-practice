@@ -182,7 +182,7 @@ impl Log {
         Ok(Self { file, file_path })
     }
 
-    // 遍历数据文件，构建内存索引
+    // 遍历数据文件，构建内存索引（并“删除”数据的过滤）
     fn build_keydir(&mut self) -> Result<KeyDir> {
         let mut keydir = KeyDir::new();
         let file_size = self.file.metadata()?.len();

@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use super::engine::Engine;
+use super::engine::Engine as StorageEngine;
 use crate::{
     error::{Error, Result},
     storage::{keycode_de, keycode_se},
@@ -13,33 +13,33 @@ use crate::{
 
 pub type Version = u64;
 
-pub struct Mvcc<E: Engine> {
+pub struct Mvcc<E: StorageEngine> {
     // 这里是 storage_engine
-    engine: Arc<Mutex<E>>,
+    storage_engine: Arc<Mutex<E>>,
 }
 
-impl<E: Engine> Clone for Mvcc<E> {
+impl<E: StorageEngine> Clone for Mvcc<E> {
     fn clone(&self) -> Self {
         Self {
-            engine: self.engine.clone(),
+            storage_engine: self.storage_engine.clone(),
         }
     }
 }
 
-impl<E: Engine> Mvcc<E> {
+impl<E: StorageEngine> Mvcc<E> {
     pub fn new(eng: E) -> Self {
         Self {
-            engine: Arc::new(Mutex::new(eng)),
+            storage_engine: Arc::new(Mutex::new(eng)),
         }
     }
 
     pub fn begin(&self) -> Result<MvccTransaction<E>> {
         // Ok(MvccTransaction::begin(self.engine.clone()))
-        MvccTransaction::begin(self.engine.clone())
+        MvccTransaction::begin(self.storage_engine.clone())
     }
 }
 
-pub struct MvccTransaction<E: Engine> {
+pub struct MvccTransaction<E: StorageEngine> {
     engine: Arc<Mutex<E>>,
     state: TransactionState, // 事务状态
 }
@@ -97,7 +97,7 @@ impl MvccKeyPrefix {
     }
 }
 
-impl<E: Engine> MvccTransaction<E> {
+impl<E: StorageEngine> MvccTransaction<E> {
     // 开启事务
     pub fn begin(eng: Arc<Mutex<E>>) -> Result<Self> {
         // Self { engine: eng }
