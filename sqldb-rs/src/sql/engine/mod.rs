@@ -28,10 +28,10 @@ pub struct Session<E: Engine> {
 
 impl<E: Engine> Session<E> {
     pub fn execute(&mut self, sql: &str) -> Result<ResultSet> {
+        // SQL -- Parser --> STMT(AST) -- Planner --> Node(Plan)[data_schema, data_type]
         match Parser::new(sql).parse()? {
             stmt => {
                 let mut txn = self.engine.begin()?;
-
                 // 这里 execute 方法是使用执行器的工厂方法利用刚构建的事务创建执行器，并执行
                 // 执行器操作的数据视图是事务的视图(sqldb_rs::sql::engine::Transaction)
                 match Plan::build(stmt).execute(&mut txn) {

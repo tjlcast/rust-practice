@@ -49,8 +49,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         todo!()
     }
 
-    fn serialize_i64(self, _v: i64) -> Result<()> {
-        todo!()
+    fn serialize_i64(self, value: i64) -> Result<()> {
+        self.output.extend(value.to_be_bytes());
+        Ok(())
     }
 
     fn serialize_u8(self, _v: u8) -> Result<()> {
@@ -82,8 +83,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         todo!()
     }
 
-    fn serialize_str(self, _v: &str) -> Result<()> {
-        todo!()
+    fn serialize_str(self, value: &str) -> Result<()> {
+        self.output.extend(value.as_bytes());
+        Ok(())
     }
 
     // 00 表示结束，原值[0]转换为[0,255]

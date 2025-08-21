@@ -182,6 +182,7 @@ impl<'a> Parser<'a> {
             },
             nullable: None,
             default: None,
+            primary_key: false,
         };
 
         // 解析列的默认值和是否可以为空
@@ -194,6 +195,10 @@ impl<'a> Parser<'a> {
                     column.nullable = Some(false);
                 }
                 Keyword::Default => column.default = Some(self.parse_expression()?),
+                Keyword::Primary => {
+                    self.next_expect(Token::Keyword(Keyword::Key))?;
+                    column.primary_key = true;
+                }
                 k => return Err(Error::Parse(format!("[Parser] Unexpected keyword: {}", k))),
             };
         }
@@ -335,24 +340,79 @@ mod tests {
                         datatype: DataType::Integer,
                         nullable: None,
                         default: Some(Expression::Consts(ast::Consts::Integer(100))),
+                        primary_key: false,
                     },
                     Column {
                         name: "b".to_string(),
                         datatype: DataType::Float,
                         nullable: Some(false),
                         default: None,
+                        primary_key: false,
                     },
                     Column {
                         name: "c".to_string(),
                         datatype: DataType::String,
                         nullable: Some(true),
                         default: None,
+                        primary_key: false,
                     },
                     Column {
                         name: "d".to_string(),
                         datatype: DataType::Boolean,
                         nullable: None,
                         default: Some(Expression::Consts(ast::Consts::Boolean(true))),
+                        primary_key: false,
+                    },
+                ],
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_create_table_with_primary() -> Result<()> {
+        let sql1 = "
+            create table tbl1 (
+                a int primary key,
+                b float not null,
+                c varchar null,
+                d bool default true);
+        ";
+
+        let stmt1 = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1,
+            Statement::CreateTable {
+                name: "tbl1".to_string(),
+                columns: vec![
+                    Column {
+                        name: "a".to_string(),
+                        datatype: DataType::Integer,
+                        nullable: None,
+                        default: None,
+                        primary_key: true,
+                    },
+                    Column {
+                        name: "b".to_string(),
+                        datatype: DataType::Float,
+                        nullable: Some(false),
+                        default: None,
+                        primary_key: false,
+                    },
+                    Column {
+                        name: "c".to_string(),
+                        datatype: DataType::String,
+                        nullable: Some(true),
+                        default: None,
+                        primary_key: false,
+                    },
+                    Column {
+                        name: "d".to_string(),
+                        datatype: DataType::Boolean,
+                        nullable: None,
+                        default: Some(Expression::Consts(ast::Consts::Boolean(true))),
+                        primary_key: false,
                     },
                 ],
             }
@@ -384,24 +444,28 @@ mod tests {
                         datatype: DataType::Integer,
                         nullable: None,
                         default: Some(Expression::Consts(ast::Consts::Integer(100))),
+                        primary_key: false,
                     },
                     Column {
                         name: "b".to_string(),
                         datatype: DataType::Float,
                         nullable: Some(false),
                         default: None,
+                        primary_key: false,
                     },
                     Column {
                         name: "c".to_string(),
                         datatype: DataType::String,
                         nullable: Some(true),
                         default: None,
+                        primary_key: false,
                     },
                     Column {
                         name: "d".to_string(),
                         datatype: DataType::Boolean,
                         nullable: None,
                         default: Some(Expression::Consts(ast::Consts::Boolean(true))),
+                        primary_key: false,
                     },
                 ],
             }
@@ -449,7 +513,10 @@ mod tests {
             Ok(stmt) => println!("{:?}", stmt),
             Err(e) => {
                 println!("err: {}", e);
-                assert_eq!(e.to_string(), "parse error [Parser] Unexpected token CREATE");
+                assert_eq!(
+                    e.to_string(),
+                    "parse error [Parser] Unexpected token CREATE"
+                );
             }
         }
 

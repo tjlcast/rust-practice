@@ -1,5 +1,5 @@
 use serde::{de, ser};
-use std::fmt::Display;
+use std::{fmt::Display, string::FromUtf8Error};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -57,6 +57,12 @@ impl From<std::io::Error> for Error {
 
 impl From<std::array::TryFromSliceError> for Error {
     fn from(value: std::array::TryFromSliceError) -> Self {
+        Error::Internal(value.to_string())
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(value: FromUtf8Error) -> Self {
         Error::Internal(value.to_string())
     }
 }

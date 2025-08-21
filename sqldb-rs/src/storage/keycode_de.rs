@@ -1,5 +1,8 @@
+use std::any::Any;
+
 use serde::de;
 use serde::de::IntoDeserializer;
+use serde::de::Visitor;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -88,11 +91,13 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         todo!()
     }
 
-    fn deserialize_i64<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        let bytes = self.take_bytes(8);
+        let v = i64::from_be_bytes(bytes.try_into()?);
+        visitor.visit_i64(v)
     }
 
     fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value>
@@ -148,11 +153,12 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         todo!()
     }
 
-    fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        let bytes = self.next_bytes()?;
+        visitor.visit_str(&String::from_utf8(bytes)?)
     }
 
     fn deserialize_string<V>(self, _visitor: V) -> Result<V::Value>
