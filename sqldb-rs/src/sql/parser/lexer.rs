@@ -59,6 +59,7 @@ pub enum Keyword {
     Update,
     Set,
     Where,
+    Delete,
 }
 
 impl Keyword {
@@ -90,6 +91,7 @@ impl Keyword {
             "UPDATE" => Self::Update,
             "WHERE" => Self::Where,
             "SET" => Self::Set,
+            "DELETE" => Self::Delete,
             _ => return None,
         })
     }
@@ -122,6 +124,7 @@ impl Keyword {
             Self::Update => "UPDATE",
             Self::Set => "SET",
             Self::Where => "WHERE",
+            Self::Delete => "DELETE",
         }
     }
 }
@@ -245,7 +248,7 @@ impl<'a> Lexer<'a> {
             Some('\'') => self.scan_string(),
             // 扫描数字
             Some(c) if c.is_ascii_digit() => self.scan_number(), // 扫描数字
-            Some(c) if c.is_alphabetic() => self.scan_ident_or_keyword(),   // 扫描 Ident
+            Some(c) if c.is_alphabetic() => self.scan_ident_or_keyword(), // 扫描 Ident
             Some(_) => self.scan_symbol(),                       // 扫描符号
             None => Ok(None),
         }

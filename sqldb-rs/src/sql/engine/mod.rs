@@ -70,6 +70,9 @@ pub trait Transaction {
     // 更新行
     fn update_row(&mut self, table: &Table, id: &Value, row: Row) -> Result<()>;
 
+    // 删除行
+    fn delete_row(&mut self, table: &Table, id: &Value) -> Result<()>;
+
     // 扫描表
     fn scan_table(
         &self,

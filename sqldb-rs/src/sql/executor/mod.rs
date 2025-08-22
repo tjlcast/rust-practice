@@ -5,7 +5,7 @@ use crate::{
     sql::{
         engine::Transaction,
         executor::{
-            mutation::{Insert, Update},
+            mutation::{Delete, Insert, Update},
             query::Scan,
         },
     },
@@ -38,6 +38,9 @@ pub enum ResultSet {
         rows: Vec<Row>,
     },
     Update {
+        count: usize,
+    },
+    Delete {
         count: usize,
     },
 }
@@ -86,6 +89,11 @@ impl<T: Transaction + 'static> dyn Executor<T> {
                 // 注意这里有一个递归，涉及到trait object的生命周期擦除
                 Self::build(*source),
                 columns,
+            ),
+            Node::Delete { table_name, source } => Delete::new(
+                table_name,
+                // 注意这里有一个递归，涉及到trait object的生命周期擦除
+                Self::build(*source),
             ),
         }
     }

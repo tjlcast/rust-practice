@@ -118,6 +118,12 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
         Ok(())
     }
 
+    fn delete_row(&mut self, table: &Table, id: &Value) -> Result<()> {
+        let key_enc = Key::Row(table.name.clone(), id.clone()).encode()?;
+        self.txn.delete(key_enc)?;
+        Ok(())
+    }
+
     fn scan_table(
         &self,
         table_name: String,
@@ -205,7 +211,11 @@ impl KeyPrefix {
 #[cfg(test)]
 mod tests {
     use super::KVEngine;
-    use crate::{error::Result, sql::engine::Engine, storage::memory::MemoryEngine};
+    use crate::{
+        error::{Error, Result},
+        sql::{engine::Engine, executor::ResultSet},
+        storage::memory::MemoryEngine,
+    };
 
     #[test]
     fn test_create_table() -> Result<()> {
@@ -321,5 +331,38 @@ mod tests {
         assert_eq!(result_set, expected);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_delete() -> Result<()> {
+        let kv_engine = KVEngine::new(MemoryEngine::new());
+        let mut session = kv_engine.session()?;
+
+        session.execute("create table t1 (a int primary key, b text, c integer);")?;
+        session.execute("insert into t1 values(1, 'a', 1);")?;
+        session.execute("insert into t1 values(2, 'b', 2);")?;
+        session.execute("insert into t1 values(3, 'c', 3);")?;
+        session.execute("delete from t1;")?;
+
+        if let Ok(ResultSet::Scan { columns, rows }) = session.execute("select * from t1;") {
+            assert_eq!(columns, vec!["a", "b", "c"]);
+            assert_eq!(rows.len(), 0);
+        } else {
+            return Err(Error::Internal("invalid result set".to_string()));
+        }
+
+        session.execute("insert into t1 values(1, 'a', 1);")?;
+        session.execute("insert into t1 values(2, 'b', 2);")?;
+        session.execute("insert into t1 values(3, 'c', 3);")?;
+        session.execute("delete from t1 where a = 2;")?;
+
+        match session.execute("select * from t1;") {
+            Ok(ResultSet::Scan { columns, rows }) => {
+                assert_eq!(columns, vec!["a", "b", "c"]);
+                assert_eq!(rows.len(), 2);
+                Ok(())
+            }
+            _ => Err(Error::Internal("invalid result set".to_string())),
+        }
     }
 }

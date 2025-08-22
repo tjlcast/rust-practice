@@ -39,6 +39,15 @@ SET column_name = expr [, ...]
 ```
 where condition is: `column_name = expr`
 
+
+### 5\ Delete Data
+``` sql
+DELETE FROM table_name
+[WHERE condition];
+```
+
+where condition is: `column_name = expr`
+
 ## 数据模型
 
 以下是模块依赖关系图，展示了各个模块之间的依赖关系：
