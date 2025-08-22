@@ -56,6 +56,9 @@ pub enum Keyword {
     Null,
     Primary,
     Key,
+    Update,
+    Set,
+    Where,
 }
 
 impl Keyword {
@@ -84,6 +87,9 @@ impl Keyword {
             "NULL" => Self::Null,
             "PRIMARY" => Self::Primary,
             "KEY" => Self::Key,
+            "UPDATE" => Self::Update,
+            "WHERE" => Self::Where,
+            "SET" => Self::Set,
             _ => return None,
         })
     }
@@ -113,6 +119,9 @@ impl Keyword {
             Self::Null => "NULL",
             Self::Primary => "PRIMARY",
             Self::Key => "KEY",
+            Self::Update => "UPDATE",
+            Self::Set => "SET",
+            Self::Where => "WHERE",
         }
     }
 }
@@ -149,6 +158,8 @@ pub enum Token {
     Minus,
     // 斜杠 /
     Slash,
+    // 等于 =
+    Equal,
 }
 
 impl Display for Token {
@@ -166,10 +177,12 @@ impl Display for Token {
             Token::Plus => "+",
             Token::Minus => "-",
             Token::Slash => "/",
+            Token::Equal => "=",
         })
     }
 }
 
+// See README.md for lexer grammar
 pub struct Lexer<'a> {
     iter: Peekable<Chars<'a>>,
 }
@@ -232,7 +245,7 @@ impl<'a> Lexer<'a> {
             Some('\'') => self.scan_string(),
             // 扫描数字
             Some(c) if c.is_ascii_digit() => self.scan_number(), // 扫描数字
-            Some(c) if c.is_alphabetic() => self.scan_ident(),   // 扫描 Ident
+            Some(c) if c.is_alphabetic() => self.scan_ident_or_keyword(),   // 扫描 Ident
             Some(_) => self.scan_symbol(),                       // 扫描符号
             None => Ok(None),
         }
@@ -249,12 +262,13 @@ impl<'a> Lexer<'a> {
             '+' => Some(Token::Plus),
             '-' => Some(Token::Minus),
             '/' => Some(Token::Slash),
+            '=' => Some(Token::Equal),
             _ => None,
         }))
     }
 
     // 扫描 Ident 类型，例如：表名、列名等(也有可能是关键字： True or false)
-    fn scan_ident(&mut self) -> Result<Option<Token>> {
+    fn scan_ident_or_keyword(&mut self) -> Result<Option<Token>> {
         let mut value: String = match self.next_if(|c| c.is_alphabetic()) {
             Some(first) => first.to_string(),
             None => return Ok(None),

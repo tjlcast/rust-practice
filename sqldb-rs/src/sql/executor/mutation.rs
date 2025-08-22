@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::error::{Error, Result};
 use crate::sql::schema::Table;
@@ -99,4 +99,57 @@ fn pad_row(table: &Table, row: &Row) -> Result<Row> {
     }
 
     Ok(results)
+}
+
+// Update 执行器
+pub struct Update<T> {
+    table_name: String,
+    source: Box<dyn Executor<T>>,
+    columns: BTreeMap<String, Expression>,
+}
+
+impl<T: Transaction> Update<T> {
+    pub fn new(
+        table_name: String,
+        source: Box<dyn Executor<T>>,
+        columns: BTreeMap<String, Expression>,
+    ) -> Box<Self> {
+        Box::new(Self {
+            table_name,
+            source,
+            columns,
+        })
+    }
+}
+
+impl<T: Transaction> Executor<T> for Update<T> {
+    fn execute(self: Box<Self>, txn: &mut T) -> Result<ResultSet> {
+        let mut count = 0;
+
+        // 执行扫描操作，获取到扫描的结果
+        match self.source.execute(txn)? {
+            ResultSet::Scan { columns, rows } => {
+                let table = txn.must_get_table(self.table_name)?;
+                // 遍历所有需要更新的行
+                for row in rows {
+                    let mut new_rows = row.clone();
+                    let pk = table.get_primary_key(&row)?;
+                    for (i, col) in columns.iter().enumerate() {
+                        if let Some(expr) = self.columns.get(col) {
+                            new_rows[i] = Value::from_expression(expr.clone());
+                        }
+                    }
+
+                    // 执行更新操作
+                    // 如果有主键的更新，使用删除+新增的策略
+                    // 否则就 table_name + primary_key => 进行更新
+                    txn.update_row(&table, &pk, new_rows)?;
+                    count += 1;
+                }
+            }
+            _ => return Err(Error::Internal("Unexpected result set".into())),
+        }
+
+        Ok(ResultSet::Update { count: count })
+    }
 }

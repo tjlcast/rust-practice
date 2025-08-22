@@ -2,6 +2,7 @@ use crate::error::{Error, Result};
 use crate::sql::parser::ast::Column;
 use crate::sql::parser::lexer::{Keyword, Lexer, Token};
 use crate::sql::types::DataType;
+use std::collections::BTreeMap;
 use std::iter::Peekable;
 
 pub mod ast;
@@ -31,15 +32,62 @@ impl<'a> Parser<'a> {
         Ok(stmt)
     }
 
+    // 核心方法，把sql转为stmt
     fn parse_statement(&mut self) -> Result<ast::Statement> {
         // 查看第一个 Token 类型
         match self.peek()? {
             Some(Token::Keyword(Keyword::Create)) => self.parse_ddl(),
             Some(Token::Keyword(Keyword::Select)) => self.parse_select(),
             Some(Token::Keyword(Keyword::Insert)) => self.parse_insert(),
+            Some(Token::Keyword(Keyword::Update)) => self.parse_update(),
             Some(t) => Err(Error::Parse(format!("[Parser] Unexpected token: {:?}", t))),
             None => Err(Error::Parse(format!("[Parser] Unexpected end of input"))),
         }
+    }
+
+    // 解析 update 类型
+    fn parse_update(&mut self) -> Result<ast::Statement> {
+        self.next_expect(Token::Keyword(Keyword::Update))?;
+
+        // 表名
+        let table_name = self.next_indent()?;
+
+        self.next_expect(Token::Keyword(Keyword::Set))?;
+
+        let mut columns = BTreeMap::new();
+        loop {
+            let col = self.next_indent()?;
+            self.next_expect(Token::Equal)?;
+            let value = self.parse_expression()?;
+            if columns.contains_key(&col) {
+                return Err(Error::Internal(format!(
+                    "[Parser] Duplicate column: {} for update",
+                    col
+                )));
+            }
+            columns.insert(col, value);
+            // 如果没有逗号，列解析完成，跳出
+            if self.next_if_token(Token::Comma).is_none() {
+                break;
+            }
+        }
+
+        Ok(ast::Statement::Update {
+            table_name,
+            columns,
+            where_clause: self.parse_where_clause()?,
+        })
+    }
+
+    fn parse_where_clause(&mut self) -> Result<Option<(String, ast::Expression)>> {
+        if self.next_if_token(Token::Keyword(Keyword::Where)).is_none() {
+            return Ok(None);
+        }
+
+        let col = self.next_indent()?;
+        self.next_expect(Token::Equal)?;
+        let value = self.parse_expression()?;
+        Ok(Some((col, value)))
     }
 
     // 解析 insert 类型
@@ -620,6 +668,33 @@ mod tests {
             stmt1_or_err,
             Statement::Select {
                 table_name: "tbl1".to_string(),
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_update() -> Result<()> {
+        let sql1 = "
+            update tbl1 set a = 1, b = 2.0 where c = 'a';
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        println!("{:?}", stmt1_or_err);
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Update {
+                table_name: "tbl1".to_string(),
+                columns: vec![
+                    ("a".to_string(), Expression::Consts(ast::Consts::Integer(1))),
+                    ("b".to_string(), Expression::Consts(ast::Consts::Float(2.0))),
+                ]
+                .into_iter()
+                .collect(),
+                where_clause: Some((
+                    "c".to_string(),
+                    Expression::Consts(ast::Consts::String("a".to_string())),
+                )),
             }
         );
 

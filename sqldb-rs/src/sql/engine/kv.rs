@@ -5,6 +5,7 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::sql::engine::Engine;
 use crate::sql::engine::Transaction;
+use crate::sql::parser::ast::Expression;
 use crate::sql::schema::Table;
 use crate::sql::types::Row;
 use crate::sql::types::Value;
@@ -103,13 +104,41 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
         Ok(())
     }
 
-    fn scan_table(&self, table_name: String) -> Result<Vec<Row>> {
-        let mut rows = Vec::new();
+    fn update_row(&mut self, table: &Table, id: &Value, row: Row) -> Result<()> {
+        let new_pk = table.get_primary_key(&row)?;
+        // 更新了主键，则删除旧的数据
+        if *id != new_pk {
+            let key_enc = Key::Row(table.name.clone(), id.clone()).encode()?;
+            self.txn.delete(key_enc)?;
+        }
+
+        let key_enc = Key::Row(table.name.clone(), new_pk).encode()?;
+        let val_enc = bincode::serialize(&row)?;
+        self.txn.set(key_enc, val_enc)?;
+        Ok(())
+    }
+
+    fn scan_table(
+        &self,
+        table_name: String,
+        filter: Option<(String, Expression)>,
+    ) -> Result<Vec<Row>> {
+        let table = self.must_get_table(table_name.clone())?;
         let prefix_enc = KeyPrefix::Row(table_name.clone()).encode()?;
         let results = self.txn.scan_prefix(prefix_enc)?;
+
+        let mut rows = Vec::new();
         for result in results {
+            // 过滤数据
             let row: Row = bincode::deserialize(&result.value)?;
-            rows.push(row);
+            if let Some((col, expr)) = &filter {
+                let col_index = table.get_col_index(&col)?;
+                if Value::from_expression(expr.clone()) == row[col_index] {
+                    rows.push(row);
+                }
+            } else {
+                rows.push(row);
+            }
         }
         Ok(rows)
     }
@@ -215,6 +244,81 @@ mod tests {
         };
 
         assert_eq!(select_result, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_update() -> Result<()> {
+        let kv_engine = KVEngine::new(MemoryEngine::new());
+        let mut session = kv_engine.session()?;
+
+        session.execute("create table t1 (a int primary key, b text, c integer);")?;
+        session.execute("insert into t1 values(1, 'a', 1);")?;
+        session.execute("insert into t1 values(2, 'b', 2);")?;
+        session.execute("insert into t1 values(3, 'c', 3);")?;
+
+        let result_set = session.execute("update t1 set b = 'aa' where a = 1;")?;
+        println!("updated properties num: {:?}", result_set);
+        assert_eq!(
+            result_set,
+            crate::sql::executor::ResultSet::Update { count: 1 }
+        );
+
+        let result_set = session.execute("select * from t1;")?;
+        println!("select result after update properties: {:?}", result_set);
+        let expected = crate::sql::engine::ResultSet::Scan {
+            columns: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            rows: vec![
+                vec![
+                    crate::sql::types::Value::Integer(1),
+                    crate::sql::types::Value::String("aa".to_string()),
+                    crate::sql::types::Value::Integer(1),
+                ],
+                vec![
+                    crate::sql::types::Value::Integer(2),
+                    crate::sql::types::Value::String("b".to_string()),
+                    crate::sql::types::Value::Integer(2),
+                ],
+                vec![
+                    crate::sql::types::Value::Integer(3),
+                    crate::sql::types::Value::String("c".to_string()),
+                    crate::sql::types::Value::Integer(3),
+                ],
+            ],
+        };
+        assert_eq!(result_set, expected);
+
+        let result_set = session.execute("update t1 set a = 33 where a = 3;")?;
+        println!("result_set: {:?}", result_set);
+        assert_eq!(
+            result_set,
+            crate::sql::executor::ResultSet::Update { count: 1 }
+        );
+
+        let result_set = session.execute("select * from t1;")?;
+        println!("result_set: {:?}", result_set);
+        let expected = crate::sql::engine::ResultSet::Scan {
+            columns: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            rows: vec![
+                vec![
+                    crate::sql::types::Value::Integer(1),
+                    crate::sql::types::Value::String("aa".to_string()),
+                    crate::sql::types::Value::Integer(1),
+                ],
+                vec![
+                    crate::sql::types::Value::Integer(2),
+                    crate::sql::types::Value::String("b".to_string()),
+                    crate::sql::types::Value::Integer(2),
+                ],
+                vec![
+                    crate::sql::types::Value::Integer(33),
+                    crate::sql::types::Value::String("c".to_string()),
+                    crate::sql::types::Value::Integer(3),
+                ],
+            ],
+        };
+        assert_eq!(result_set, expected);
 
         Ok(())
     }

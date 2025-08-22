@@ -51,6 +51,16 @@ impl Table {
 
         Ok(row[position].clone())
     }
+
+    pub fn get_col_index(&self, col_name: &str) -> Result<usize> {
+        self.columns
+            .iter()
+            .position(|c| c.name == col_name)
+            .ok_or(Error::Internal(format!(
+                "column {} does not exist",
+                col_name
+            )))
+    }
 }
 
 // 关联到 Plan

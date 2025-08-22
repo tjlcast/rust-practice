@@ -1,3 +1,44 @@
+
+## 支持的SQL
+
+### 1\ Create Table
+``` sql
+CREATE TABLE table_name (
+    [ column_name data_type [column_constraint [...] ]]
+    [, ...]
+);
+
+where data_type is
+    - BOOLEAN(BOOL): true | false
+    - FLOAT(DOUBLE)
+    - INTEGER(INT)
+    - STRING(TEXT, VARCHAR)
+
+where column_constraint is:
+    [NOT NULL | NULL | DEFAULT expr ]
+```
+
+### 2\ Insert Data
+``` sql
+INSERT INTO table_name
+[ ( column_name [,...] ) ]
+values (expr [,...]);
+```
+
+### 3\ Query Data
+``` sql
+SELECT * FROM table_name;
+```
+
+
+### 4\ Update Data
+``` sql
+UPDATE table_name
+SET column_name = expr [, ...]
+[WHERE condition]
+```
+where condition is: `column_name = expr`
+
 ## 数据模型
 
 以下是模块依赖关系图，展示了各个模块之间的依赖关系：

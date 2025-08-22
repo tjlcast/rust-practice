@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::error::Result;
 use crate::sql::engine::Transaction;
 use crate::sql::executor::Executor;
@@ -10,7 +12,7 @@ use crate::sql::{
 
 pub mod planner;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Node {
     // 创建表
     CreateTable {
@@ -27,11 +29,19 @@ pub enum Node {
     // 扫描节点
     Scan {
         table_name: String,
+        filter: Option<(String, Expression)>,
+    },
+
+    // 更新节点
+    Update {
+        table_name: String,
+        source: Box<Node>,
+        columns: BTreeMap<String, Expression>,
     },
 }
 
 // 执行计划定义，底层是不同类型执行节点
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Plan(pub Node);
 
 impl Plan {
@@ -41,7 +51,7 @@ impl Plan {
     }
 
     // 当这个 PLAN 执行的时候，获取其中的 Node，构建一个执行器(构建的时候进行类型自适应构建)并执行
-    pub fn execute<T: Transaction>(self, txn: &mut T) -> Result<ResultSet> {
+    pub fn execute<T: Transaction + 'static>(self, txn: &mut T) -> Result<ResultSet> {
         // let exec = <dyn Executor<T>>::build(self.0);
         let exec = Box::new(<dyn Executor<T>>::build(self.0));
         exec.execute(txn)
@@ -109,6 +119,14 @@ mod tests {
         let stmt1 = Parser::new(sql1).parse()?;
         let p1 = Plan::build(stmt1);
         println!("{:?}", p1);
+
+        assert_eq!(
+            p1,
+            Plan(crate::sql::plan::Node::Scan {
+                table_name: "tbl1".to_string(),
+                filter: None,
+            })
+        );
 
         Ok(())
     }
