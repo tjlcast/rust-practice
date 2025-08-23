@@ -33,8 +33,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     type SerializeStruct = serde::ser::Impossible<Self::Ok, Self::Error>;
     type SerializeStructVariant = serde::ser::Impossible<Self::Ok, Self::Error>;
 
-    fn serialize_bool(self, _v: bool) -> Result<()> {
-        todo!()
+    fn serialize_bool(self, v: bool) -> Result<()> {
+        self.output.push(v as u8);
+        Ok(())
     }
 
     fn serialize_i8(self, _v: i8) -> Result<()> {

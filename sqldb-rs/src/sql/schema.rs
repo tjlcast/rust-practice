@@ -39,6 +39,31 @@ impl Table {
             }
         }
 
+        // 检查表的列信息
+        for column in &self.columns {
+            // 主键不能为空
+            if column.primary_key && column.nullable {
+                return Err(Error::Internal(format!(
+                    "Primary key {} cannot be null for table {}",
+                    column.name, self.name
+                )));
+            }
+            // 校验默认值是否和列类型一致
+            if let Some(default_value) = &column.default {
+                match default_value.datatype() {
+                    Some(dt) => {
+                        if dt != column.datatype {
+                            return Err(Error::Internal(format!(
+                                "Default value for column {} mismatch in table {}",
+                                column.name, self.name
+                            )));
+                        }
+                    }
+                    None => {},
+                }
+            }
+        }
+
         Ok(())
     }
 

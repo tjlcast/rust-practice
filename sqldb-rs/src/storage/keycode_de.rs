@@ -63,11 +63,14 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         todo!()
     }
 
-    fn deserialize_bool<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        let v = self.take_bytes(1)[0];
+        // v == 0 ==> false
+        // 否则为 true
+        visitor.visit_bool(v != 0)
     }
 
     fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value>
