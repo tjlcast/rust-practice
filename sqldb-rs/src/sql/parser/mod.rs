@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::sql::parser::ast::Column;
+use crate::sql::parser::ast::{Column, OrderDirection};
 use crate::sql::parser::lexer::{Keyword, Lexer, Token};
 use crate::sql::types::DataType;
 use std::collections::BTreeMap;
@@ -105,6 +105,35 @@ impl<'a> Parser<'a> {
         Ok(Some((col, value)))
     }
 
+    // 解析 order by 子句
+    fn parse_order_by_clause(&mut self) -> Result<Vec<(String, OrderDirection)>> {
+        let mut orders = Vec::new();
+        if self.next_if_token(Token::Keyword(Keyword::Order)).is_none() {
+            return Ok(orders);
+        }
+
+        self.next_expect(Token::Keyword(Keyword::By))?;
+        loop {
+            let col = self.next_indent()?;
+            let ord = match self.next_if(|it| {
+                matches!(
+                    it,
+                    Token::Keyword(Keyword::Asc) | Token::Keyword(Keyword::Desc)
+                )
+            }) {
+                Some(Token::Keyword(Keyword::Asc)) => OrderDirection::Asc,
+                Some(Token::Keyword(Keyword::Desc)) => OrderDirection::Desc,
+                _ => OrderDirection::Asc,
+            };
+            orders.push((col, ord));
+
+            if self.next_if_token(Token::Comma).is_none() {
+                break;
+            }
+        }
+        Ok(orders)
+    }
+
     // 解析 insert 类型
     fn parse_insert(&mut self) -> Result<ast::Statement> {
         self.next_expect(Token::Keyword(Keyword::Insert))?;
@@ -177,7 +206,10 @@ impl<'a> Parser<'a> {
         // 解析表名
         let table_name = self.next_indent()?;
 
-        Ok(ast::Statement::Select { table_name })
+        Ok(ast::Statement::Select {
+            table_name,
+            order_by: self.parse_order_by_clause()?,
+        })
     }
 
     // 解析 DDL 类型
@@ -683,6 +715,24 @@ mod tests {
             stmt1_or_err,
             Statement::Select {
                 table_name: "tbl1".to_string(),
+                order_by: vec![],
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_select_order_by() -> Result<()> {
+        let sql1 = "
+            select * from tbl1 order by a, b asc, c desc;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                table_name: "tbl1".to_string(),
+                order_by: vec![("a".to_string(), OrderDirection::Asc), ("b".to_string(), OrderDirection::Asc), ("c".to_string(), OrderDirection::Desc)],
             }
         );
 

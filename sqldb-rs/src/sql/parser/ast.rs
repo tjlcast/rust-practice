@@ -15,6 +15,7 @@ pub enum Statement {
     },
     Select {
         table_name: String,
+        order_by: Vec<(String, OrderDirection)>,
     },
     Update {
         table_name: String,
@@ -25,6 +26,12 @@ pub enum Statement {
         table_name: String,
         where_clause: Option<(String, Expression)>,
     },
+}
+
+#[derive(Debug, PartialEq)]
+pub enum OrderDirection {
+    Asc,
+    Desc,
 }
 
 #[derive(Debug, PartialEq)]

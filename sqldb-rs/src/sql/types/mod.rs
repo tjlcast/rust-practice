@@ -56,4 +56,21 @@ impl Display for Value {
     }
 }
 
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Value::Null, Value::Null) => Some(std::cmp::Ordering::Equal),
+            (Value::Null, _) => Some(std::cmp::Ordering::Less),
+            (_, Value::Null) => Some(std::cmp::Ordering::Greater),
+            (Value::Boolean(a), Value::Boolean(b)) => a.partial_cmp(b),
+            (Value::Integer(a), Value::Integer(b)) => a.partial_cmp(b),
+            (Value::Integer(a), Value::Float(b)) => (*a as f64).partial_cmp(b),
+            (Value::Float(a), Value::Integer(b)) => a.partial_cmp(&(*b as f64)),
+            (Value::Float(a), Value::Float(b)) => a.partial_cmp(b),
+            (Value::String(a), Value::String(b)) => a.partial_cmp(b),
+            (_, _) => None, // 不可比较
+        }
+    }
+}
+
 pub type Row = Vec<Value>;

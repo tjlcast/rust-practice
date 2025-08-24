@@ -28,6 +28,7 @@ values (expr [,...]);
 ### 3\ Query Data
 ``` sql
 SELECT * FROM table_name;
+[order by col_name [asc | desc] [, ...]]
 ```
 
 

@@ -6,7 +6,7 @@ use crate::{
         engine::Transaction,
         executor::{
             mutation::{Delete, Insert, Update},
-            query::Scan,
+            query::{Order, Scan},
         },
     },
 };
@@ -80,6 +80,7 @@ impl<T: Transaction + 'static> dyn Executor<T> {
                 values,
             } => Insert::new(table_name, columns, values),
             Node::Scan { table_name, filter } => Scan::new(table_name, filter),
+            Node::Order { source, order_by } => Order::new(Self::build(*source), order_by),
             Node::Update {
                 table_name,
                 source,

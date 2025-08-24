@@ -60,6 +60,10 @@ pub enum Keyword {
     Set,
     Where,
     Delete,
+    Order,
+    By,
+    Asc,
+    Desc,
 }
 
 impl Keyword {
@@ -92,6 +96,10 @@ impl Keyword {
             "WHERE" => Self::Where,
             "SET" => Self::Set,
             "DELETE" => Self::Delete,
+            "ORDER" => Self::Order,
+            "BY" => Self::By,
+            "ASC" => Self::Asc,
+            "DESC" => Self::Desc,
             _ => return None,
         })
     }
@@ -125,6 +133,10 @@ impl Keyword {
             Self::Set => "SET",
             Self::Where => "WHERE",
             Self::Delete => "DELETE",
+            Self::Order => "ORDER",
+            Self::By => "BY",
+            Self::Asc => "ASC",
+            Self::Desc => "DESC",
         }
     }
 }
