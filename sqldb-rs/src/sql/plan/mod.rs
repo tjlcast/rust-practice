@@ -51,6 +51,18 @@ pub enum Node {
         source: Box<Node>,
         order_by: Vec<(String, OrderDirection)>, // 列名，排序方式
     },
+
+    // limit节点
+    Limit {
+        source: Box<Node>,
+        limit: usize,
+    },
+
+    // offset 节点
+    Offset {
+        source: Box<Node>,
+        offset: usize,
+    },
 }
 
 // 执行计划定义，底层是不同类型执行节点
@@ -59,7 +71,7 @@ pub struct Plan(pub Node);
 
 impl Plan {
     // 使用 AST 创建一个 Plan（其中有一个node）
-    pub fn build(stmt: ast::Statement) -> Self {
+    pub fn build(stmt: ast::Statement) -> Result<Self> {
         Planner::new().build(stmt)
     }
 
@@ -90,7 +102,7 @@ mod tests {
         ";
 
         let stmt1 = Parser::new(sql1).parse()?;
-        let p1 = Plan::build(stmt1);
+        let p1 = Plan::build(stmt1)?;
         println!("{:?}", p1);
 
         let sql2 = "
@@ -103,7 +115,7 @@ mod tests {
         ";
 
         let stmt2 = Parser::new(sql2).parse()?;
-        let p2 = Plan::build(stmt2);
+        let p2 = Plan::build(stmt2)?;
         println!("{:?}", p2);
 
         Ok(())
@@ -114,13 +126,13 @@ mod tests {
         let sql1 = "
             insert into tbl1 values (1, 2, 3, 'a', true);";
         let stmt1 = Parser::new(sql1).parse()?;
-        let p1 = Plan::build(stmt1);
+        let p1 = Plan::build(stmt1)?;
         println!("{:?}", p1);
 
         let sql2 = "
             insert into tbl1 values (1, 2, 3, 'a', true);";
         let stmt2 = Parser::new(sql2).parse()?;
-        let p2 = Plan::build(stmt2);
+        let p2 = Plan::build(stmt2)?;
         println!("{:?}", p2);
 
         Ok(())
@@ -130,7 +142,7 @@ mod tests {
     fn test_plan_select() -> Result<()> {
         let sql1 = "select * from tbl1;";
         let stmt1 = Parser::new(sql1).parse()?;
-        let p1 = Plan::build(stmt1);
+        let p1 = Plan::build(stmt1)?;
         println!("{:?}", p1);
 
         assert_eq!(

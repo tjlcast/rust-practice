@@ -209,6 +209,23 @@ impl<'a> Parser<'a> {
         Ok(ast::Statement::Select {
             table_name,
             order_by: self.parse_order_by_clause()?,
+            limit: {
+                if self.next_if_token(Token::Keyword(Keyword::Limit)).is_some() {
+                    Some(self.parse_expression()?)
+                } else {
+                    None
+                }
+            },
+            offset: {
+                if self
+                    .next_if_token(Token::Keyword(Keyword::Offset))
+                    .is_some()
+                {
+                    Some(self.parse_expression()?)
+                } else {
+                    None
+                }
+            },
         })
     }
 
@@ -716,6 +733,8 @@ mod tests {
             Statement::Select {
                 table_name: "tbl1".to_string(),
                 order_by: vec![],
+                limit: None,
+                offset: None,
             }
         );
 
@@ -732,7 +751,32 @@ mod tests {
             stmt1_or_err,
             Statement::Select {
                 table_name: "tbl1".to_string(),
-                order_by: vec![("a".to_string(), OrderDirection::Asc), ("b".to_string(), OrderDirection::Asc), ("c".to_string(), OrderDirection::Desc)],
+                order_by: vec![
+                    ("a".to_string(), OrderDirection::Asc),
+                    ("b".to_string(), OrderDirection::Asc),
+                    ("c".to_string(), OrderDirection::Desc)
+                ],
+                limit: None,
+                offset: None,
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_select_limit_offset() -> Result<()> {
+        let sql1 = "
+            select * from tbl1 limit 10 offset 20;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                table_name: "tbl1".to_string(),
+                order_by: vec![],
+                limit: Expression::Consts(ast::Consts::Integer(10)).into(),
+                offset: Expression::Consts(ast::Consts::Integer(20)).into(),
             }
         );
 

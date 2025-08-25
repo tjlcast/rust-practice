@@ -28,7 +28,9 @@ values (expr [,...]);
 ### 3\ Query Data
 ``` sql
 SELECT * FROM table_name;
-[order by col_name [asc | desc] [, ...]]
+[ORDER BY col_name [asc | desc] [, ...]]
+[LIMIT count]
+[OFFSET count]
 ```
 
 

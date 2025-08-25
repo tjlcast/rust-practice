@@ -5,6 +5,8 @@ use crate::sql::{
     types::Value,
 };
 
+use crate::error::Result;
+
 pub struct Planner;
 
 impl Planner {
@@ -12,12 +14,12 @@ impl Planner {
         Self {}
     }
 
-    pub fn build(&mut self, stmt: ast::Statement) -> Plan {
-        Plan(self.build_statment(stmt))
+    pub fn build(&mut self, stmt: ast::Statement) -> Result<Plan> {
+        Ok(Plan(self.build_statment(stmt)?))
     }
 
-    fn build_statment(&self, stmt: ast::Statement) -> Node {
-        match stmt {
+    fn build_statment(&self, stmt: ast::Statement) -> Result<Node> {
+        Ok(match stmt {
             ast::Statement::CreateTable { name, columns } => Node::CreateTable {
                 schema: Table {
                     name,
@@ -55,6 +57,8 @@ impl Planner {
             ast::Statement::Select {
                 table_name,
                 order_by,
+                limit,
+                offset,
             } => {
                 let mut node = Node::Scan {
                     table_name,
@@ -68,6 +72,29 @@ impl Planner {
                         order_by: order_by,
                     }
                 }
+
+                // offset
+                if let Some(expr) = offset {
+                    node = Node::Offset {
+                        source: Box::new(node),
+                        offset: match Value::from_expression(expr) {
+                            Value::Integer(i) if i >= 0 => i as usize,
+                            _ => 0,
+                        },
+                    }
+                }
+
+                // limit
+                if let Some(expr) = limit {
+                    node = Node::Limit {
+                        source: Box::new(node),
+                        limit: match Value::from_expression(expr) {
+                            Value::Integer(i) if i >= 0 => i as usize,
+                            _ => usize::MAX,
+                        },
+                    }
+                }
+
                 node
             }
             ast::Statement::Update {
@@ -92,6 +119,6 @@ impl Planner {
                     filter: where_clause,
                 }),
             },
-        }
+        })
     }
 }

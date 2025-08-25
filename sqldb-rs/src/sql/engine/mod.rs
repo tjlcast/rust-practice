@@ -40,7 +40,7 @@ impl<E: Engine + 'static> Session<E> {
                 let mut txn = self.engine.begin()?;
                 // 这里 execute 方法是使用执行器的工厂方法利用刚构建的事务创建执行器，并执行
                 // 执行器操作的数据视图是事务的视图(sqldb_rs::sql::engine::Transaction)
-                match Plan::build(stmt).execute(&mut txn) {
+                match Plan::build(stmt)?.execute(&mut txn) {
                     Ok(result) => {
                         txn.commit()?;
                         Ok(result)

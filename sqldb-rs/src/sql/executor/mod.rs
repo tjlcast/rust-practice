@@ -6,7 +6,7 @@ use crate::{
         engine::Transaction,
         executor::{
             mutation::{Delete, Insert, Update},
-            query::{Order, Scan},
+            query::{Limit, Offset, Order, Scan},
         },
     },
 };
@@ -96,6 +96,8 @@ impl<T: Transaction + 'static> dyn Executor<T> {
                 // 注意这里有一个递归，涉及到trait object的生命周期擦除
                 Self::build(*source),
             ),
+            Node::Limit { source, limit } => Limit::new(Self::build(*source), limit),
+            Node::Offset { source, offset } => Offset::new(Self::build(*source), offset),
         }
     }
 }
