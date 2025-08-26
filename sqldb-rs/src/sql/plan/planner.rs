@@ -1,8 +1,11 @@
-use crate::sql::{
-    parser::ast,
-    plan::{Node, Plan},
-    schema::{self, Table},
-    types::Value,
+use crate::{
+    error::Error,
+    sql::{
+        parser::ast::{self, JoinType},
+        plan::{Node, Plan},
+        schema::{self, Table},
+        types::Value,
+    },
 };
 
 use crate::error::Result;
@@ -56,15 +59,21 @@ impl Planner {
             },
             ast::Statement::Select {
                 select,
-                table_name,
+                from,
                 order_by,
                 limit,
                 offset,
             } => {
-                let mut node = Node::Scan {
-                    table_name,
-                    filter: None,
-                };
+                // let mut node = Node::Scan {
+                //     table_name: match from {
+                //         ast::FromItem::Table { name } => name,
+                //         _ => panic!("Only table is supported"),
+                //     },
+                //     filter: None,
+                // };
+
+                // from
+                let mut node = self.build_from_item(from)?;
 
                 // order by
                 if !order_by.is_empty() {
@@ -127,6 +136,29 @@ impl Planner {
                     table_name,
                     filter: where_clause,
                 }),
+            },
+        })
+    }
+
+    fn build_from_item(&self, item: ast::FromItem) -> Result<Node> {
+        Ok(match item {
+            ast::FromItem::Table { name } => Node::Scan {
+                table_name: name,
+                filter: None,
+            },
+            ast::FromItem::Join {
+                left,
+                right,
+                join_type,
+            } => match join_type {
+                JoinType::Cross => Node::NestedLoopJoin {
+                    left: Box::new(self.build_from_item(*left)?),
+                    right: Box::new(self.build_from_item(*right)?),
+                },
+                _ => Err(Error::Internal(format!(
+                    "Join type {:?} not supported yet",
+                    join_type
+                )))?,
             },
         })
     }

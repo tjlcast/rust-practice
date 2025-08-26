@@ -33,6 +33,16 @@ FROM table_name;
 [LIMIT count]
 [OFFSET count]
 ```
+where `from_item` is:
+- table_name
+- table_name `join_type` table_name [`ON` predicate]
+where `join_type` is:
+- cross join
+- join
+- left join
+- right join
+where `on predicate` is:
+- column_name = column_name
 
 
 ### 4\ Update Data

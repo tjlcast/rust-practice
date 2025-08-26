@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::sql::parser::ast::{Column, Expression, OrderDirection};
+use crate::sql::parser::ast::{Column, Expression, FromItem, OrderDirection};
 use crate::sql::parser::lexer::{Keyword, Lexer, Token};
 use crate::sql::types::DataType;
 use std::collections::BTreeMap;
@@ -202,14 +202,12 @@ impl<'a> Parser<'a> {
         // 解析 select 的列信息
         let select = self.parse_select_clause()?;
 
-        self.next_expect(Token::Keyword(Keyword::From))?;
-
-        // 解析表名
-        let table_name = self.next_indent()?;
+        // self.next_expect(Token::Keyword(Keyword::From))?;
+        let from = self.parse_from_clause()?;
 
         Ok(ast::Statement::Select {
             select,
-            table_name,
+            from,
             order_by: self.parse_order_by_clause()?,
             limit: {
                 if self.next_if_token(Token::Keyword(Keyword::Limit)).is_some() {
@@ -318,6 +316,42 @@ impl<'a> Parser<'a> {
         }
 
         Ok(column)
+    }
+
+    fn parse_from_clause(&mut self) -> Result<ast::FromItem> {
+        // from 关键字
+        self.next_expect(Token::Keyword(Keyword::From))?;
+
+        // 第一个表名
+        let mut item = self.parse_from_table_clause()?;
+
+        // 是否有 Join
+        while let Some(join_type) = self.parse_from_clause_join()? {
+            let left = Box::new(item);
+            let right = Box::new(self.parse_from_table_clause()?);
+            item = FromItem::Join {
+                left,
+                right,
+                join_type,
+            }
+        }
+
+        Ok(item)
+    }
+
+    fn parse_from_table_clause(&mut self) -> Result<FromItem> {
+        Ok(ast::FromItem::Table {
+            name: self.next_indent()?,
+        })
+    }
+
+    fn parse_from_clause_join(&mut self) -> Result<Option<ast::JoinType>> {
+        // 是否是 Cross Join
+        if self.next_if_token(Token::Keyword(Keyword::Cross)).is_some() {
+            self.next_expect(Token::Keyword(Keyword::Join))?;
+            return Ok(Some(ast::JoinType::Cross));
+        }
+        Ok(None)
     }
 
     // 解析 select 子句
@@ -461,7 +495,7 @@ mod tests {
     use super::*;
     use crate::{
         error::Result,
-        sql::parser::ast::{Expression, Statement},
+        sql::parser::ast::{Expression, FromItem, JoinType, Statement},
     };
 
     #[test]
@@ -766,7 +800,9 @@ mod tests {
             stmt1_or_err,
             Statement::Select {
                 select: vec![],
-                table_name: "tbl1".to_string(),
+                from: ast::FromItem::Table {
+                    name: "tbl1".to_string(),
+                },
                 order_by: vec![],
                 limit: None,
                 offset: None,
@@ -786,7 +822,9 @@ mod tests {
             stmt1_or_err,
             Statement::Select {
                 select: vec![],
-                table_name: "tbl1".to_string(),
+                from: FromItem::Table {
+                    name: "tbl1".to_string()
+                },
                 order_by: vec![
                     ("a".to_string(), OrderDirection::Asc),
                     ("b".to_string(), OrderDirection::Asc),
@@ -810,7 +848,9 @@ mod tests {
             stmt1_or_err,
             Statement::Select {
                 select: vec![],
-                table_name: "tbl1".to_string(),
+                from: FromItem::Table {
+                    name: "tbl1".to_string()
+                },
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -819,7 +859,6 @@ mod tests {
 
         Ok(())
     }
-
 
     #[test]
     fn test_parse_select_as() -> Result<()> {
@@ -835,7 +874,9 @@ mod tests {
                     (Expression::Field("b".to_string()), Some("col2".to_string())),
                     (Expression::Field("c".to_string()), Some("col3".to_string())),
                 ],
-                table_name: "tbl1".to_string(),
+                from: FromItem::Table {
+                    name: "tbl1".to_string()
+                },
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -845,6 +886,70 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_parse_select_cross_join() -> Result<()> {
+        let sql1 = "
+            select a as col1, b as col2, c as col3 from tbl1 cross join tbl2 limit 10 offset 20;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                select: vec![
+                    (Expression::Field("a".to_string()), Some("col1".to_string())),
+                    (Expression::Field("b".to_string()), Some("col2".to_string())),
+                    (Expression::Field("c".to_string()), Some("col3".to_string())),
+                ],
+                from: FromItem::Join {
+                    left: Box::new(FromItem::Table {
+                        name: "tbl1".to_string()
+                    }),
+                    right: Box::new(FromItem::Table {
+                        name: "tbl2".to_string()
+                    }),
+                    join_type: JoinType::Cross {}
+                },
+                order_by: vec![],
+                limit: Expression::Consts(ast::Consts::Integer(10)).into(),
+                offset: Expression::Consts(ast::Consts::Integer(20)).into(),
+            }
+        );
+
+        let sql1 = "
+            select a as col1, b as col2, c as col3 from tbl1 cross join tbl2 cross join tbl3 limit 10 offset 20;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                select: vec![
+                    (Expression::Field("a".to_string()), Some("col1".to_string())),
+                    (Expression::Field("b".to_string()), Some("col2".to_string())),
+                    (Expression::Field("c".to_string()), Some("col3".to_string())),
+                ],
+                from: FromItem::Join {
+                    left: Box::new(FromItem::Join {
+                        left: Box::new(FromItem::Table {
+                            name: "tbl1".to_string()
+                        }),
+                        right: Box::new(FromItem::Table {
+                            name: "tbl2".to_string()
+                        }),
+                        join_type: JoinType::Cross {}
+                    }),
+                    right: Box::new(FromItem::Table {
+                        name: "tbl3".to_string()
+                    }),
+                    join_type: JoinType::Cross {}
+                },
+                order_by: vec![],
+                limit: Expression::Consts(ast::Consts::Integer(10)).into(),
+                offset: Expression::Consts(ast::Consts::Integer(20)).into(),
+            }
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn test_parse_update() -> Result<()> {

@@ -213,7 +213,7 @@ mod tests {
     use super::KVEngine;
     use crate::{
         error::{Error, Result},
-        sql::{engine::Engine, executor::ResultSet, parser::ast::Column},
+        sql::{engine::Engine, executor::ResultSet, parser::ast::Column, types::Value},
         storage::{disk::DiskEngine, memory::MemoryEngine},
     };
 
@@ -445,7 +445,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_select_as() -> Result<()> {
         let p = tempfile::tempdir()?.into_path().join("sqldb-log");
@@ -473,8 +472,9 @@ mod tests {
             _ => unreachable!(),
         }
 
-
-        match s.execute("select a as aa, b as bb, c as cc, d as dd from t3 order by a limit 3 offset 2;")? {
+        match s.execute(
+            "select a as aa, b as bb, c as cc, d as dd from t3 order by a limit 3 offset 2;",
+        )? {
             ResultSet::Scan { columns, rows } => {
                 for col in &columns {
                     print!("{} ", col);
@@ -483,6 +483,117 @@ mod tests {
                 for r in rows {
                     println!("{:?} ", r);
                 }
+            }
+            _ => unreachable!(),
+        }
+
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cross_join() -> Result<()> {
+        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
+        let mut s = kvengine.session()?;
+
+        s.execute("create table t1 (a int primary key, b text, c integer);")?;
+        s.execute("insert into t1 values(1, 'a', 1);")?;
+        s.execute("insert into t1 values(2, 'b', 2);")?;
+        s.execute("insert into t1 values(3, 'c', 3);")?;
+
+        s.execute("create table t2 (x int primary key, y text);")?;
+        s.execute("insert into t2 values(10, 'x');")?;
+        s.execute("insert into t2 values(20, 'y');")?;
+
+        match s.execute("select * from t1 cross join t2;")? {
+            ResultSet::Scan { columns, rows } => {
+                for col in &columns {
+                    print!("{} ", col);
+                }
+                println!();
+                for r in rows {
+                    println!("{:?} ", r);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select * from t1 cross join t2;")? {
+            ResultSet::Scan { columns, rows } => {
+                // 检查列名
+                assert_eq!(columns, vec!["a", "b", "c", "x", "y"]);
+
+                // 检查行数
+                assert_eq!(rows.len(), 6);
+
+                // 检查每一行的数据是否符合预期
+                assert_eq!(
+                    rows[0],
+                    vec![
+                        Value::Integer(1),
+                        Value::String("a".to_string()),
+                        Value::Integer(1),
+                        Value::Integer(10),
+                        Value::String("x".to_string())
+                    ]
+                );
+
+                assert_eq!(
+                    rows[1],
+                    vec![
+                        Value::Integer(1),
+                        Value::String("a".to_string()),
+                        Value::Integer(1),
+                        Value::Integer(20),
+                        Value::String("y".to_string())
+                    ]
+                );
+
+                assert_eq!(
+                    rows[2],
+                    vec![
+                        Value::Integer(2),
+                        Value::String("b".to_string()),
+                        Value::Integer(2),
+                        Value::Integer(10),
+                        Value::String("x".to_string())
+                    ]
+                );
+
+                assert_eq!(
+                    rows[3],
+                    vec![
+                        Value::Integer(2),
+                        Value::String("b".to_string()),
+                        Value::Integer(2),
+                        Value::Integer(20),
+                        Value::String("y".to_string())
+                    ]
+                );
+
+                assert_eq!(
+                    rows[4],
+                    vec![
+                        Value::Integer(3),
+                        Value::String("c".to_string()),
+                        Value::Integer(3),
+                        Value::Integer(10),
+                        Value::String("x".to_string())
+                    ]
+                );
+
+                assert_eq!(
+                    rows[5],
+                    vec![
+                        Value::Integer(3),
+                        Value::String("c".to_string()),
+                        Value::Integer(3),
+                        Value::Integer(20),
+                        Value::String("y".to_string())
+                    ]
+                );
             }
             _ => unreachable!(),
         }

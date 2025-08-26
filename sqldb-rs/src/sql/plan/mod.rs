@@ -68,6 +68,12 @@ pub enum Node {
     Projection {
         source: Box<Node>,
         select: Vec<(Expression, Option<String>)>, // (表达式, 可选别名)
+    },
+
+    // 嵌套循环 Join 节点
+    NestedLoopJoin {
+        left: Box<Node>,
+        right: Box<Node>,
     }
 }
 

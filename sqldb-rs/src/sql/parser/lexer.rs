@@ -67,6 +67,8 @@ pub enum Keyword {
     Limit,
     Offset,
     As,
+    Cross,
+    Join,
 }
 
 impl Keyword {
@@ -106,6 +108,8 @@ impl Keyword {
             "LIMIT" => Self::Limit,
             "OFFSET" => Self::Offset,
             "AS" => Self::As,
+            "CROSS" => Self::Cross,
+            "JOIN" => Self::Join,
             _ => return None,
         })
     }
@@ -146,6 +150,8 @@ impl Keyword {
             Self::Limit => "LIMIT",
             Self::Offset => "OFFSET",
             Self::As => "AS",
+            Self::Cross => "CROSS",
+            Self::Join => "JOIN",
         }
     }
 }

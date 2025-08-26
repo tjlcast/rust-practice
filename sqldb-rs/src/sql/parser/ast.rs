@@ -14,8 +14,8 @@ pub enum Statement {
         values: Vec<Vec<Expression>>,
     },
     Select {
-        table_name: String,
         select: Vec<(Expression, Option<String>)>, // (表达式, 可选别名)
+        from: FromItem,
         order_by: Vec<(String, OrderDirection)>,
         limit: Option<Expression>,
         offset: Option<Expression>,
@@ -35,6 +35,26 @@ pub enum Statement {
 pub enum OrderDirection {
     Asc,
     Desc,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FromItem {
+    Table {
+        name: String,
+    },
+    Join {
+        left: Box<FromItem>,
+        right: Box<FromItem>,
+        join_type: JoinType,
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum JoinType {
+    Cross,
+    Inner,
+    Left,
+    Right,
 }
 
 #[derive(Debug, PartialEq)]
