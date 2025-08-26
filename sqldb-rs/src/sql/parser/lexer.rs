@@ -66,6 +66,7 @@ pub enum Keyword {
     Desc,
     Limit,
     Offset,
+    As,
 }
 
 impl Keyword {
@@ -104,6 +105,7 @@ impl Keyword {
             "DESC" => Self::Desc,
             "LIMIT" => Self::Limit,
             "OFFSET" => Self::Offset,
+            "AS" => Self::As,
             _ => return None,
         })
     }
@@ -143,6 +145,7 @@ impl Keyword {
             Self::Desc => "DESC",
             Self::Limit => "LIMIT",
             Self::Offset => "OFFSET",
+            Self::As => "AS",
         }
     }
 }

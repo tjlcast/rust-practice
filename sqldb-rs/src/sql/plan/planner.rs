@@ -55,6 +55,7 @@ impl Planner {
                 values,
             },
             ast::Statement::Select {
+                select,
                 table_name,
                 order_by,
                 limit,
@@ -92,6 +93,14 @@ impl Planner {
                             Value::Integer(i) if i >= 0 => i as usize,
                             _ => usize::MAX,
                         },
+                    }
+                }
+
+                // projection
+                if !select.is_empty() {
+                    node = Node::Projection {
+                        source: Box::new(node),
+                        select: select,
                     }
                 }
 

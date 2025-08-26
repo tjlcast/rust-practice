@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::sql::parser::ast::{Column, OrderDirection};
+use crate::sql::parser::ast::{Column, Expression, OrderDirection};
 use crate::sql::parser::lexer::{Keyword, Lexer, Token};
 use crate::sql::types::DataType;
 use std::collections::BTreeMap;
@@ -199,14 +199,16 @@ impl<'a> Parser<'a> {
 
     // 解析 select 类型
     fn parse_select(&mut self) -> Result<ast::Statement> {
-        self.next_expect(Token::Keyword(Keyword::Select))?;
-        self.next_expect(Token::Asterisk)?;
+        // 解析 select 的列信息
+        let select = self.parse_select_clause()?;
+
         self.next_expect(Token::Keyword(Keyword::From))?;
 
         // 解析表名
         let table_name = self.next_indent()?;
 
         Ok(ast::Statement::Select {
+            select,
             table_name,
             order_by: self.parse_order_by_clause()?,
             limit: {
@@ -318,9 +320,41 @@ impl<'a> Parser<'a> {
         Ok(column)
     }
 
+    // 解析 select 子句
+    fn parse_select_clause(&mut self) -> Result<Vec<(Expression, Option<String>)>> {
+        self.next_expect(Token::Keyword(Keyword::Select))?;
+
+        let mut select = Vec::new();
+
+        // select *
+        if self.next_if_token(Token::Asterisk).is_some() {
+            return Ok(select);
+        }
+
+        loop {
+            let expr = self.parse_expression()?;
+            // 查看是否有别名
+            let alias = match self.next_if_token(Token::Keyword(Keyword::As)) {
+                Some(_) => Some(self.next_indent()?),
+                None => None,
+            };
+
+            select.push((expr, alias));
+            if self.next_if_token(Token::Comma).is_none() {
+                break;
+            }
+        }
+
+        Ok(select)
+    }
+
     // 解析表达式
     fn parse_expression(&mut self) -> Result<ast::Expression> {
         Ok(match self.next()? {
+            Token::Ident(ident) => {
+                // 列名
+                ast::Expression::Field(ident)
+            }
             Token::Number(n) => {
                 if n.chars().all(|c| c.is_ascii_digit()) {
                     // 整数
@@ -731,6 +765,7 @@ mod tests {
         assert_eq!(
             stmt1_or_err,
             Statement::Select {
+                select: vec![],
                 table_name: "tbl1".to_string(),
                 order_by: vec![],
                 limit: None,
@@ -750,6 +785,7 @@ mod tests {
         assert_eq!(
             stmt1_or_err,
             Statement::Select {
+                select: vec![],
                 table_name: "tbl1".to_string(),
                 order_by: vec![
                     ("a".to_string(), OrderDirection::Asc),
@@ -773,6 +809,7 @@ mod tests {
         assert_eq!(
             stmt1_or_err,
             Statement::Select {
+                select: vec![],
                 table_name: "tbl1".to_string(),
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
@@ -782,6 +819,32 @@ mod tests {
 
         Ok(())
     }
+
+
+    #[test]
+    fn test_parse_select_as() -> Result<()> {
+        let sql1 = "
+            select a as col1, b as col2, c as col3 from tbl1 limit 10 offset 20;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                select: vec![
+                    (Expression::Field("a".to_string()), Some("col1".to_string())),
+                    (Expression::Field("b".to_string()), Some("col2".to_string())),
+                    (Expression::Field("c".to_string()), Some("col3".to_string())),
+                ],
+                table_name: "tbl1".to_string(),
+                order_by: vec![],
+                limit: Expression::Consts(ast::Consts::Integer(10)).into(),
+                offset: Expression::Consts(ast::Consts::Integer(20)).into(),
+            }
+        );
+
+        Ok(())
+    }
+
 
     #[test]
     fn test_parse_update() -> Result<()> {

@@ -103,7 +103,7 @@ impl<T: Transaction> Limit<T> {
 impl<T: Transaction> Executor<T> for Limit<T> {
     fn execute(self: Box<Self>, txn: &mut T) -> crate::error::Result<ResultSet> {
         match self.source.execute(txn)? {
-            ResultSet::Scan { columns, mut rows } => {
+            ResultSet::Scan { columns, rows } => {
                 // if rows.len() > self.limit {
                 //     rows.truncate(self.limit);
                 // }
@@ -132,7 +132,7 @@ impl<T: Transaction> Offset<T> {
 impl<T: Transaction> Executor<T> for Offset<T> {
     fn execute(self: Box<Self>, txn: &mut T) -> crate::error::Result<ResultSet> {
         match self.source.execute(txn)? {
-            ResultSet::Scan { columns, mut rows } => {
+            ResultSet::Scan { columns, rows } => {
                 // if rows.len() > self.offset {
                 //     rows.drain(0..self.offset);
                 // }
@@ -143,6 +143,69 @@ impl<T: Transaction> Executor<T> for Offset<T> {
                 })
             }
             _ => return Err(Error::Internal("Unexpected result set".into())),
+        }
+    }
+}
+
+pub struct Projection<T: Transaction> {
+    source: Box<dyn Executor<T>>,
+    exprs: Vec<(Expression, Option<String>)>, // (表达式, 可选别名)
+}
+
+impl<T: Transaction> Projection<T> {
+    pub fn new(
+        source: Box<dyn Executor<T>>,
+        select: Vec<(Expression, Option<String>)>,
+    ) -> Box<Self> {
+        Box::new(Self {
+            source,
+            exprs: select,
+        })
+    }
+}
+
+impl<T: Transaction> Executor<T> for Projection<T> {
+    fn execute(self: Box<Self>, txn: &mut T) -> crate::error::Result<ResultSet> {
+        match self.source.execute(txn)? {
+            ResultSet::Scan { columns, rows } => {
+                // 找到需要输出哪些列
+                let mut selected = Vec::new();
+                let mut new_columns = Vec::new();
+                for (expr, alias) in self.exprs {
+                    if let Expression::Field(col_name) = expr {
+                        let pos = match columns.iter().position(|c| *c == col_name) {
+                            Some(pos) => pos,
+                            None => {
+                                return Err(Error::Internal(format!(
+                                    "projection column {} is not in table",
+                                    col_name
+                                )));
+                            }
+                        };
+                        selected.push(pos);
+                        new_columns.push(if alias.is_some() {
+                            alias.unwrap()
+                        } else {
+                            col_name
+                        });
+                    }
+                }
+
+                let mut new_rows = Vec::new();
+                for row in rows.into_iter() {
+                    let mut new_row = Vec::new();
+                    for i in selected.iter() {
+                        new_row.push(row[*i].clone());
+                    }
+                    new_rows.push(new_row);
+                }
+
+                Ok(ResultSet::Scan {
+                    columns: new_columns,
+                    rows: new_rows,
+                })
+            }
+            _ => return Err(Error::Internal(format!("Unexpected result set"))),
         }
     }
 }

@@ -27,7 +27,8 @@ values (expr [,...]);
 
 ### 3\ Query Data
 ``` sql
-SELECT * FROM table_name;
+SELECT [ * | column_name [ [ AS ] output_name [, ...]] ]
+FROM table_name;
 [ORDER BY col_name [asc | desc] [, ...]]
 [LIMIT count]
 [OFFSET count]
