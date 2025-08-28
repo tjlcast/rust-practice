@@ -208,6 +208,7 @@ impl<'a> Parser<'a> {
         Ok(ast::Statement::Select {
             select,
             from,
+            group_by: self.parse_group_clause()?,
             order_by: self.parse_order_by_clause()?,
             limit: {
                 if self.next_if_token(Token::Keyword(Keyword::Limit)).is_some() {
@@ -353,6 +354,15 @@ impl<'a> Parser<'a> {
         }
 
         Ok(item)
+    }
+
+    fn parse_group_clause(&mut self) -> Result<Option<Expression>> {
+        if self.next_if_token(Token::Keyword(Keyword::Group)).is_none() {
+            return Ok(None);
+        }
+
+        self.next_expect(Token::Keyword(Keyword::By))?;
+        Ok(Some(self.parse_expression()?))
     }
 
     fn parse_from_table_clause(&mut self) -> Result<FromItem> {
@@ -840,6 +850,7 @@ mod tests {
                 from: ast::FromItem::Table {
                     name: "tbl1".to_string(),
                 },
+                group_by: None,
                 order_by: vec![],
                 limit: None,
                 offset: None,
@@ -862,6 +873,7 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                group_by: None,
                 order_by: vec![
                     ("a".to_string(), OrderDirection::Asc),
                     ("b".to_string(), OrderDirection::Asc),
@@ -888,6 +900,7 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -914,6 +927,7 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -947,6 +961,7 @@ mod tests {
                     join_type: JoinType::Cross {},
                     predicate: None,
                 },
+                group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -982,6 +997,7 @@ mod tests {
                     join_type: JoinType::Cross {},
                     predicate: None,
                 },
+                group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -1019,10 +1035,48 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
-
+                group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_group_by_select() -> Result<()> {
+        let sql1 = "
+            select count(a), min(b), max(c) from tbl1 group by a;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        println!("{:?}", stmt1_or_err);
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                select: vec![
+                    (
+                        Expression::Function("count".to_string(), "a".to_string()),
+                        None
+                    ),
+                    (
+                        Expression::Function("min".to_string(), "b".to_string()),
+                        None
+                    ),
+                    (
+                        Expression::Function("max".to_string(), "c".to_string()),
+                        None
+                    )
+                ],
+
+                from: FromItem::Table {
+                    name: "tbl1".to_string()
+                },
+                group_by: Some(ast::Expression::Field("a".into())),
+                order_by: vec![],
+                limit: None,
+                offset: None,
             }
         );
 

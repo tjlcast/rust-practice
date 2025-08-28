@@ -1,36 +1,6 @@
 use crate::error::{Error, Result};
 use std::{fmt::Display, iter::Peekable, str::Chars};
-/*
 
-CREATE TABLE table_name (
-    [ column_name data_type [column_constraint [...] ]]
-    [, ...]
-);
-
-where data_type is
-    - BOOLEAN(BOOL): true | false
-    - FLOAT(DOUBLE)
-    - INTEGER(INT)
-    - STRING(TEXT, VARCHAR)
-
-where column_constraint is:
-    [NOT NULL | NULL | DEFAULT expr ]
-
-*/
-
-/*
-
-INSERT INTO table_name
-[ ( column_name [,...] ) ]
-values (expr [,...]);
-
-*/
-
-/*
-
-SELECT * FROM table_name;
-
-*/
 #[derive(Debug, Clone, PartialEq)]
 pub enum Keyword {
     Create,
@@ -72,6 +42,7 @@ pub enum Keyword {
     Left,
     Right,
     On,
+    Group,
 }
 
 impl Keyword {
@@ -116,6 +87,7 @@ impl Keyword {
             "LEFT" => Self::Left,
             "RIGHT" => Self::Right,
             "ON" => Self::On,
+            "GROUP" => Self::Group,
             _ => return None,
         })
     }
@@ -161,6 +133,7 @@ impl Keyword {
             Self::Left => "LEFT",
             Self::Right => "RIGHT",
             Self::On => "ON",
+            Self::Group => "GROUP",
         }
     }
 }

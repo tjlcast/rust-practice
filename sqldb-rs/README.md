@@ -1,7 +1,7 @@
 
 ## 支持的SQL
 
-### 1\ Create Table
+### 1. Create Table
 ``` sql
 CREATE TABLE table_name (
     [ column_name data_type [column_constraint [...] ]]
@@ -18,17 +18,18 @@ where column_constraint is:
     [NOT NULL | NULL | DEFAULT expr ]
 ```
 
-### 2\ Insert Data
+### 2. Insert Data
 ``` sql
 INSERT INTO table_name
 [ ( column_name [,...] ) ]
 values (expr [,...]);
 ```
 
-### 3\ Query Data
+### 3. Query Data
 ``` sql
 SELECT [ * | column_name | function [ [ AS ] output_name [, ...]] ]
 FROM table_name;
+[GROUP BY col_name]
 [ORDER BY col_name [asc | desc] [, ...]]
 [LIMIT count]
 [OFFSET count]
@@ -50,7 +51,7 @@ where `function` is:
 - sum(col_name)
 - avg(col_name)
 
-### 4\ Update Data
+### 4. Update Data
 ``` sql
 UPDATE table_name
 SET column_name = expr [, ...]
@@ -59,7 +60,7 @@ SET column_name = expr [, ...]
 where condition is: `column_name = expr`
 
 
-### 5\ Delete Data
+### 5. Delete Data
 ``` sql
 DELETE FROM table_name
 [WHERE condition];

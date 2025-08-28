@@ -755,4 +755,59 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_group_by_select() -> Result<()> {
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
+        let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
+        let mut s = kvengine.session()?;
+
+        s.execute("create table t1 (a int primary key, b text, c float);")?;
+        s.execute("insert into t1 values(1, 'aa', 3.1);")?;
+        s.execute("insert into t1 values(2, 'bb', 5.3);")?;
+        s.execute("insert into t1 values(3, null, NULL);")?;
+        s.execute("insert into t1 values(4, null, 4.6);")?;
+        s.execute("insert into t1 values(5, 'bb', 5.8);")?;
+        s.execute("insert into t1 values(6, 'dd', 1.4);")?;
+
+        match s.execute("select a  from t1 group by a;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ group by ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select b from t1 group by b;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ group by ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select b, min(c), max(a), avg(c) from t1 group by b;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ group by ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+
+        Ok(())
+    }
 }

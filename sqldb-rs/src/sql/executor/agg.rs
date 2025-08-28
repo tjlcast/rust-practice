@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     error::{Error, Result},
     sql::{
@@ -11,16 +13,19 @@ use crate::{
 pub struct Aggregate<T: Transaction> {
     source: Box<dyn Executor<T>>,
     exprs: Vec<(Expression, Option<String>)>, // (表达式, 可选别名)
+    group_by: Option<Expression>,
 }
 
 impl<T: Transaction> Aggregate<T> {
     pub fn new(
         source: Box<dyn Executor<T>>,
         select: Vec<(Expression, Option<String>)>,
+        group_by: Option<Expression>,
     ) -> Box<Self> {
         Box::new(Self {
             source,
             exprs: select,
+            group_by,
         })
     }
 }
@@ -30,24 +35,87 @@ impl<T: Transaction> Executor<T> for Aggregate<T> {
         if let ResultSet::Scan { columns, rows } = self.source.execute(txn)? {
             let mut new_cols = Vec::new();
             let mut new_rows = Vec::new();
-            for (expr, alias) in &self.exprs {
-                if let Expression::Function(func_name, col_name) = expr {
-                    let calculator = <dyn Calculator>::build(func_name)?;
-                    let val = calculator.calc(col_name, &columns, &rows)?;
 
-                    // min(a)               -> min
-                    // min(a) as min_val    -> min_val
-                    new_cols.push(if let Some(a) = alias {
-                        a.clone()
-                    } else {
-                        func_name.clone()
-                    });
-                    new_rows.push(val)
+            // 计算聚合函数
+            let mut calc = |col_val: Option<&Value>,
+                            rows: &Vec<Vec<Value>>|
+             -> Result<Vec<Value>> {
+                let mut new_row = Vec::new();
+                for (expr, alias) in &self.exprs {
+                    match expr {
+                        Expression::Function(func_name, col_name) => {
+                            let calculator = <dyn Calculator>::build(func_name)?;
+                            let val = calculator.calc(&col_name, &columns, rows)?;
+
+                            // min(a)               -> min
+                            // min(a) as min_val    -> min_val
+                            if new_cols.len() < self.exprs.len() {
+                                new_cols.push(if let Some(a) = alias {
+                                    a.clone()
+                                } else {
+                                    func_name.clone()
+                                });
+                            }
+                            new_row.push(val);
+                        }
+                        Expression::Field(col) => {
+                            if let Some(Expression::Field(group_col)) = &self.group_by {
+                                if *col != *group_col {
+                                    return Err(Error::Internal(format!(
+                                        "{} must appear in the GROUP BY clause or aggregate function",
+                                        col
+                                    )));
+                                }
+                            }
+                            if new_cols.len() < self.exprs.len() {
+                                new_cols.push(if let Some(a) = alias {
+                                    a.clone()
+                                } else {
+                                    col.clone()
+                                });
+                            }
+                            new_row.push(col_val.unwrap().clone());
+                        }
+                        _ => return Err(Error::Internal("Unexpected expression".into())),
+                    }
                 }
+                Ok(new_row)
+            };
+
+            // 判断有没有 group by
+            // select c2, min(c1), max(c3) from t group by c2; 注意 select 中的 c2 必须与group by c2 一致
+            if let Some(Expression::Field(group_col)) = &self.group_by {
+                // 对数据进行分组，然后再计算每组的统计值
+                let pos = match columns.iter().position(|c| *c == *group_col) {
+                    Some(pos) => pos,
+                    None => {
+                        return Err(Error::Internal(format!(
+                            "group by column {} not in table",
+                            group_col
+                        )));
+                    }
+                };
+
+                // 针对 Group by 的列进行分组
+                let mut agg_map = HashMap::new();
+                for row in rows.iter() {
+                    let key = &row[pos];
+                    let value = agg_map.entry(key).or_insert(Vec::new());
+                    value.push(row.clone());
+                }
+
+                for (key, row) in agg_map {
+                    let row = calc(Some(key), &row)?;
+                    new_rows.push(row);
+                }
+            } else {
+                let row = calc(None, &rows)?;
+                new_rows.push(row);
             }
+
             return Ok(ResultSet::Scan {
                 columns: new_cols,
-                rows: vec![new_rows],
+                rows: new_rows,
             });
         }
 

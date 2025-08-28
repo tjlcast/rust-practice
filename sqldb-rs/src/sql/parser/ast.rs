@@ -16,6 +16,7 @@ pub enum Statement {
     Select {
         select: Vec<(Expression, Option<String>)>, // (表达式, 可选别名)
         from: FromItem,
+        group_by: Option<Expression>,
         order_by: Vec<(String, OrderDirection)>,
         limit: Option<Expression>,
         offset: Option<Expression>,
@@ -72,8 +73,8 @@ pub struct Column {
 pub enum Expression {
     Field(String),
     Consts(Consts),
-    Operation(Operation),
-    Function(String, String),
+    Operation(Operation), // 在 join 的情况下
+    Function(String, String), // 在 agg 的情况下
 }
 
 impl From<Consts> for Expression {

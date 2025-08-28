@@ -57,6 +57,7 @@ impl Planner {
             ast::Statement::Select {
                 select,
                 from,
+                group_by,
                 order_by,
                 limit,
                 offset,
@@ -82,10 +83,14 @@ impl Planner {
                             break;
                         }
                     }
+                    if group_by.is_some() {
+                        has_agg = true;
+                    }
                     if has_agg {
                         node = Node::Aggregate {
                             source: Box::new(node),
                             exprs: select.clone(),
+                            group_by,
                         }
                     }
                 }
