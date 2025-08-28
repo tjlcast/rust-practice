@@ -12,11 +12,13 @@ use crate::sql::types::Value;
 use crate::storage::keycode_se::serialize_key;
 use crate::storage::{self, engine::Engine as StorageEngine};
 
+#[allow(dead_code)]
 pub struct KVEngine<E: StorageEngine> {
     pub storage_mvcc: storage::mvcc::Mvcc<E>,
 }
 
 impl<E: StorageEngine> KVEngine<E> {
+    #[allow(dead_code)]
     pub fn new(engine: E) -> Self {
         Self {
             storage_mvcc: storage::mvcc::Mvcc::new(engine),
@@ -45,6 +47,7 @@ pub struct KVTransaction<E: StorageEngine> {
 }
 
 impl<E: StorageEngine> KVTransaction<E> {
+    #[allow(dead_code)]
     pub fn new(txn: storage::mvcc::MvccTransaction<E>) -> Self {
         Self { txn }
     }
