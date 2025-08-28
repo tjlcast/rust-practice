@@ -77,6 +77,12 @@ pub enum Node {
         predicate: Option<Expression>, // join 条件
         outer: bool,
     },
+
+    // 聚合节点
+    Aggregate {
+        source: Box<Node>,
+        exprs: Vec<(Expression, Option<String>)>, // (表达式, 可选别名)
+    },
 }
 
 // 执行计划定义，底层是不同类型执行节点

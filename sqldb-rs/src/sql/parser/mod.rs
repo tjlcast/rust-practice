@@ -415,8 +415,16 @@ impl<'a> Parser<'a> {
     fn parse_expression(&mut self) -> Result<ast::Expression> {
         Ok(match self.next()? {
             Token::Ident(ident) => {
-                // 列名
-                ast::Expression::Field(ident)
+                // 函数的情况
+                // count(col_name)
+                if self.next_if_token(Token::OpenParen).is_some() {
+                    let col_name = self.next_indent()?;
+                    self.next_expect(Token::CloseParen)?;
+                    ast::Expression::Function(ident, col_name)
+                } else {
+                    // 列名
+                    ast::Expression::Field(ident)
+                }
             }
             Token::Number(n) => {
                 if n.chars().all(|c| c.is_ascii_digit()) {
@@ -974,6 +982,44 @@ mod tests {
                     join_type: JoinType::Cross {},
                     predicate: None,
                 },
+                order_by: vec![],
+                limit: Expression::Consts(ast::Consts::Integer(10)).into(),
+                offset: Expression::Consts(ast::Consts::Integer(20)).into(),
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_agg_select() -> Result<()> {
+        let sql1 = "
+            select count(a), min(b), max(c) from tbl1 limit 10 offset 20;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        println!("{:?}", stmt1_or_err);
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                select: vec![
+                    (
+                        Expression::Function("count".to_string(), "a".to_string()),
+                        None
+                    ),
+                    (
+                        Expression::Function("min".to_string(), "b".to_string()),
+                        None
+                    ),
+                    (
+                        Expression::Function("max".to_string(), "c".to_string()),
+                        None
+                    )
+                ],
+
+                from: FromItem::Table {
+                    name: "tbl1".to_string()
+                },
+
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),

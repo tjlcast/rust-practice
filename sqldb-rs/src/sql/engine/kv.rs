@@ -678,4 +678,81 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_agg() -> Result<()> {
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
+        let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
+        let mut s = kvengine.session()?;
+
+        s.execute("create table t1 (a int primary key, b text, c integer);")?;
+        s.execute("insert into t1 values(1, 'a', 1);")?;
+        s.execute("insert into t1 values(2, 'b', 2);")?;
+        s.execute("insert into t1 values(3, 'c', 3);")?;
+        s.execute("insert into t1 values(30, 'd', 4);")?;
+
+        match s.execute("select count(a) from t1;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ count ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select max(a) from t1;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ max ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select min(a) from t1;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ min ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select sum(a) from t1;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ sum ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select avg(a) from t1;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ avg ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+
+        Ok(())
+    }
 }

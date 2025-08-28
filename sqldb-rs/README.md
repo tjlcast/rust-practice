@@ -27,7 +27,7 @@ values (expr [,...]);
 
 ### 3\ Query Data
 ``` sql
-SELECT [ * | column_name [ [ AS ] output_name [, ...]] ]
+SELECT [ * | column_name | function [ [ AS ] output_name [, ...]] ]
 FROM table_name;
 [ORDER BY col_name [asc | desc] [, ...]]
 [LIMIT count]
@@ -43,7 +43,12 @@ where `join_type` is:
 - right join
 where `on predicate` is:
 - column_name = column_name
-
+where `function` is:
+- count(col_name)
+- min(col_name)
+- max(col_name)
+- sum(col_name)
+- avg(col_name)
 
 ### 4\ Update Data
 ``` sql

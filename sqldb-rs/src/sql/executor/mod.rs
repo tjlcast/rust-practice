@@ -14,6 +14,7 @@ use crate::{
 
 use super::{plan::Node, types::Row};
 
+mod agg;
 mod join;
 mod mutation;
 mod query;
@@ -107,6 +108,7 @@ impl<T: Transaction + 'static> dyn Executor<T> {
                 predicate,
                 outer,
             } => NestedLoopJoin::new(Self::build(*left), Self::build(*right), predicate, outer),
+            Node::Aggregate { source, exprs } => agg::Aggregate::new(Self::build(*source), exprs),
         }
     }
 }
