@@ -5,7 +5,9 @@ use crate::{
     sql::{
         engine::Transaction,
         executor::{
-            join::NestedLoopJoin, mutation::{Delete, Insert, Update}, query::{Limit, Offset, Order, Projection, Scan}
+            join::NestedLoopJoin,
+            mutation::{Delete, Insert, Update},
+            query::{Limit, Offset, Order, Projection, Scan},
         },
     },
 };
@@ -99,9 +101,12 @@ impl<T: Transaction + 'static> dyn Executor<T> {
             Node::Limit { source, limit } => Limit::new(Self::build(*source), limit),
             Node::Offset { source, offset } => Offset::new(Self::build(*source), offset),
             Node::Projection { source, select } => Projection::new(Self::build(*source), select),
-            Node::NestedLoopJoin { left, right } => {
-                NestedLoopJoin::new(Self::build(*left), Self::build(*right))
-            }
+            Node::NestedLoopJoin {
+                left,
+                right,
+                predicate,
+                outer,
+            } => NestedLoopJoin::new(Self::build(*left), Self::build(*right), predicate, outer),
         }
     }
 }

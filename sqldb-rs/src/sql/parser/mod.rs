@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::sql::parser::ast::{Column, Expression, FromItem, OrderDirection};
+use crate::sql::parser::ast::{Column, Expression, FromItem, JoinType, Operation, OrderDirection};
 use crate::sql::parser::lexer::{Keyword, Lexer, Token};
 use crate::sql::types::DataType;
 use std::collections::BTreeMap;
@@ -318,6 +318,7 @@ impl<'a> Parser<'a> {
         Ok(column)
     }
 
+    // pattern: from table1 cross join table2 on field1 = field2
     fn parse_from_clause(&mut self) -> Result<ast::FromItem> {
         // from 关键字
         self.next_expect(Token::Keyword(Keyword::From))?;
@@ -329,10 +330,25 @@ impl<'a> Parser<'a> {
         while let Some(join_type) = self.parse_from_clause_join()? {
             let left = Box::new(item);
             let right = Box::new(self.parse_from_table_clause()?);
+
+            // 解析 join_type
+            let predicate = match join_type {
+                JoinType::Cross => None,
+                _ => {
+                    self.next_expect(Token::Keyword(Keyword::On))?;
+                    let l = self.parse_expression()?;
+                    self.next_expect(Token::Equal)?;
+                    let r = self.parse_expression()?;
+                    let cond = Operation::Equal(Box::new(l), Box::new(r));
+                    Some(Expression::Operation(cond))
+                }
+            };
+
             item = FromItem::Join {
                 left,
                 right,
                 join_type,
+                predicate,
             }
         }
 
@@ -345,13 +361,26 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_from_clause_join(&mut self) -> Result<Option<ast::JoinType>> {
-        // 是否是 Cross Join
+    fn parse_from_clause_join(&mut self) -> Result<Option<JoinType>> {
+        // cross join
         if self.next_if_token(Token::Keyword(Keyword::Cross)).is_some() {
             self.next_expect(Token::Keyword(Keyword::Join))?;
-            return Ok(Some(ast::JoinType::Cross));
+            Ok(Some(JoinType::Cross))
+        // inner join
+        } else if self.next_if_token(Token::Keyword(Keyword::Join)).is_some() {
+            Ok(Some(JoinType::Inner))
+        // left join
+        } else if self.next_if_token(Token::Keyword(Keyword::Left)).is_some() {
+            self.next_expect(Token::Keyword(Keyword::Join))?;
+            Ok(Some(JoinType::Left))
+        // right join
+        } else if self.next_if_token(Token::Keyword(Keyword::Right)).is_some() {
+            self.next_expect(Token::Keyword(Keyword::Join))?;
+            Ok(Some(JoinType::Right))
+        // none
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 
     // 解析 select 子句
@@ -907,7 +936,8 @@ mod tests {
                     right: Box::new(FromItem::Table {
                         name: "tbl2".to_string()
                     }),
-                    join_type: JoinType::Cross {}
+                    join_type: JoinType::Cross {},
+                    predicate: None,
                 },
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
@@ -935,12 +965,14 @@ mod tests {
                         right: Box::new(FromItem::Table {
                             name: "tbl2".to_string()
                         }),
-                        join_type: JoinType::Cross {}
+                        join_type: JoinType::Cross {},
+                        predicate: None,
                     }),
                     right: Box::new(FromItem::Table {
                         name: "tbl3".to_string()
                     }),
-                    join_type: JoinType::Cross {}
+                    join_type: JoinType::Cross {},
+                    predicate: None,
                 },
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),

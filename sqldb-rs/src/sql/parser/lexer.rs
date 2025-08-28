@@ -69,6 +69,9 @@ pub enum Keyword {
     As,
     Cross,
     Join,
+    Left,
+    Right,
+    On,
 }
 
 impl Keyword {
@@ -110,6 +113,9 @@ impl Keyword {
             "AS" => Self::As,
             "CROSS" => Self::Cross,
             "JOIN" => Self::Join,
+            "LEFT" => Self::Left,
+            "RIGHT" => Self::Right,
+            "ON" => Self::On,
             _ => return None,
         })
     }
@@ -152,6 +158,9 @@ impl Keyword {
             Self::As => "AS",
             Self::Cross => "CROSS",
             Self::Join => "JOIN",
+            Self::Left => "LEFT",
+            Self::Right => "RIGHT",
+            Self::On => "ON",
         }
     }
 }

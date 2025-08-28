@@ -213,7 +213,7 @@ mod tests {
     use super::KVEngine;
     use crate::{
         error::{Error, Result},
-        sql::{engine::Engine, executor::ResultSet, parser::ast::Column, types::Value},
+        sql::{engine::Engine, executor::ResultSet, types::Value},
         storage::{disk::DiskEngine, memory::MemoryEngine},
     };
 
@@ -391,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_order() -> Result<()> {
-        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
         let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
         let mut s = kvengine.session()?;
         setup_table(&mut s)?;
@@ -404,7 +404,7 @@ mod tests {
         s.execute("insert into t3 values (7, 87, 82, 9.52);")?;
 
         match s.execute("select * from t3 order by d, c desc;")? {
-            ResultSet::Scan { columns, rows } => {
+            ResultSet::Scan { columns: _, rows } => {
                 for r in rows {
                     println!("{:?}", r);
                 }
@@ -419,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_select_limit_offset() -> Result<()> {
-        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
         let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
         let mut s = kvengine.session()?;
         setup_table(&mut s)?;
@@ -432,7 +432,7 @@ mod tests {
         s.execute("insert into t3 values (7, 87, 82, 9.52);")?;
 
         match s.execute("select * from t3 order by a limit 3 offset 2;")? {
-            ResultSet::Scan { columns, rows } => {
+            ResultSet::Scan { columns: _, rows } => {
                 for r in rows {
                     println!("{:?}", r);
                 }
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_select_as() -> Result<()> {
-        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
         let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
         let mut s = kvengine.session()?;
         setup_table(&mut s)?;
@@ -494,7 +494,7 @@ mod tests {
 
     #[test]
     fn test_cross_join() -> Result<()> {
-        let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
         let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
         let mut s = kvengine.session()?;
 
@@ -596,6 +596,79 @@ mod tests {
                 );
             }
             _ => unreachable!(),
+        }
+
+        std::fs::remove_dir_all(p.parent().unwrap())?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cross_join_pro() -> Result<()> {
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
+        let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
+        let mut s = kvengine.session()?;
+
+        s.execute("create table t1 (a int primary key, b text, c integer);")?;
+        s.execute("insert into t1 values(1, 'a', 1);")?;
+        s.execute("insert into t1 values(2, 'b', 2);")?;
+        s.execute("insert into t1 values(3, 'c', 3);")?;
+        s.execute("insert into t1 values(30, 'd', 4);")?;
+
+        s.execute("create table t2 (x int primary key, y text);")?;
+        s.execute("insert into t2 values(10, 'x');")?;
+        s.execute("insert into t2 values(20, 'y');")?;
+        s.execute("insert into t2 values(30, 'z');")?;
+
+        match s.execute("select * from t1 join t2 on a = x;") {
+            Ok(ResultSet::Scan { columns, rows }) => {
+                for col in &columns {
+                    print!("{} ", col);
+                }
+                println!();
+                for r in &rows {
+                    println!("{:?} ", r);
+                }
+
+                assert!(columns == vec!["a", "b", "c", "x", "y"]);
+                assert!(rows.len() == 1);
+            }
+            Ok(_) => unreachable!(),
+            Err(e) => panic!("unexpected result {:?}", e),
+        }
+
+        match s.execute("select * from t1 left join t2 on a = x;") {
+            Ok(ResultSet::Scan { columns, rows }) => {
+                for col in &columns {
+                    print!("{} ", col);
+                }
+                println!();
+                for r in &rows {
+                    println!("{:?} ", r);
+                }
+
+                assert!(columns == vec!["a", "b", "c", "x", "y"]);
+                assert!(rows.len() == 4);
+            }
+            Ok(_) => unreachable!(),
+            Err(e) => panic!("unexpected result {:?}", e),
+        }
+
+        match s.execute("select * from t1 right join t2 on a = x;") {
+            Ok(ResultSet::Scan { columns, rows }) => {
+                for col in &columns {
+                    print!("{} ", col);
+                }
+                println!();
+                for r in &rows {
+                    println!("{:?} ", r);
+                }
+
+                assert!(columns == vec!["x", "y", "a", "b", "c"]);
+                assert!(rows.len() == 3);
+            }
+            Ok(_) => unreachable!(),
+            Err(e) => panic!("unexpected result {:?}", e),
         }
 
         std::fs::remove_dir_all(p.parent().unwrap())?;

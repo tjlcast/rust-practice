@@ -46,7 +46,8 @@ pub enum FromItem {
         left: Box<FromItem>,
         right: Box<FromItem>,
         join_type: JoinType,
-    }
+        predicate: Option<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -71,6 +72,7 @@ pub struct Column {
 pub enum Expression {
     Field(String),
     Consts(Consts),
+    Operation(Operation),
 }
 
 impl From<Consts> for Expression {
@@ -86,4 +88,9 @@ pub enum Consts {
     Integer(i64),
     Float(f64),
     String(String),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Operation {
+    Equal(Box<Expression>, Box<Expression>),
 }

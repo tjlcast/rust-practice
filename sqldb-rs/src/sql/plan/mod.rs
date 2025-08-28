@@ -74,7 +74,9 @@ pub enum Node {
     NestedLoopJoin {
         left: Box<Node>,
         right: Box<Node>,
-    }
+        predicate: Option<Expression>, // join 条件
+        outer: bool,
+    },
 }
 
 // 执行计划定义，底层是不同类型执行节点

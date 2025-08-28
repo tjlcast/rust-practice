@@ -1,11 +1,8 @@
-use crate::{
-    error::Error,
-    sql::{
-        parser::ast::{self, JoinType},
-        plan::{Node, Plan},
-        schema::{self, Table},
-        types::Value,
-    },
+use crate::sql::{
+    parser::ast::{self, JoinType, Operation},
+    plan::{Node, Plan},
+    schema::{self, Table},
+    types::Value,
 };
 
 use crate::error::Result;
@@ -150,16 +147,39 @@ impl Planner {
                 left,
                 right,
                 join_type,
-            } => match join_type {
-                JoinType::Cross => Node::NestedLoopJoin {
+                predicate,
+            } => {
+                // 如果是 Right Join的情况，则交换两个查询的位置(避免执行器重复代码)
+                let (left, right) = match join_type {
+                    JoinType::Right => (right, left),
+                    _ => (left, right),
+                };
+                // 如果是 Right Join的情况，则交换Join操作的链接变量(predicate)
+                let predicate = match join_type {
+                    JoinType::Right => {
+                        if let Some(ast::Expression::Operation(Operation::Equal(lexpr, rexpr))) =
+                            predicate
+                        {
+                            Some(ast::Expression::Operation(Operation::Equal(rexpr, lexpr)))
+                        } else {
+                            predicate
+                        }
+                    }
+                    _ => predicate,
+                };
+
+                let outer = match join_type {
+                    JoinType::Cross | JoinType::Inner => false,
+                    _ => true,
+                };
+
+                Node::NestedLoopJoin {
                     left: Box::new(self.build_from_item(*left)?),
                     right: Box::new(self.build_from_item(*right)?),
-                },
-                _ => Err(Error::Internal(format!(
-                    "Join type {:?} not supported yet",
-                    join_type
-                )))?,
-            },
+                    predicate,
+                    outer,
+                }
+            }
         })
     }
 }
