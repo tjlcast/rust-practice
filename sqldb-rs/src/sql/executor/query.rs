@@ -13,11 +13,11 @@ use super::Executor;
 
 pub struct Scan {
     table_name: String,
-    filter: Option<(String, Expression)>,
+    filter: Option<Expression>,
 }
 
 impl Scan {
-    pub fn new(table_name: String, filter: Option<(String, Expression)>) -> Box<Self> {
+    pub fn new(table_name: String, filter: Option<Expression>) -> Box<Self> {
         Box::new(Self { table_name, filter })
     }
 }
