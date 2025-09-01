@@ -172,6 +172,10 @@ pub enum Token {
     Slash,
     // 等于 =
     Equal,
+    // 大于
+    GreaterThan,
+    // 小于
+    LessThan,
 }
 
 impl Display for Token {
@@ -190,6 +194,8 @@ impl Display for Token {
             Token::Minus => "-",
             Token::Slash => "/",
             Token::Equal => "=",
+            Token::GreaterThan => ">",
+            Token::LessThan => "<",
         })
     }
 }
@@ -275,6 +281,8 @@ impl<'a> Lexer<'a> {
             '-' => Some(Token::Minus),
             '/' => Some(Token::Slash),
             '=' => Some(Token::Equal),
+            '>' => Some(Token::GreaterThan),
+            '<' => Some(Token::LessThan),
             _ => None,
         }))
     }

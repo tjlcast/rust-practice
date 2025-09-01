@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::sql::parser::ast::Expression;
+use crate::sql::parser::ast::{Expression, evaluate_expr};
 use crate::sql::types::Value;
 use crate::sql::{
     engine::Transaction,
@@ -86,54 +86,5 @@ impl<T: Transaction> Executor<T> for NestedLoopJoin<T> {
         }
 
         Err(Error::Internal("Unexpected result set".into()))
-    }
-}
-
-fn evaluate_expr(
-    expr: &Expression,
-    lcols: &Vec<String>,
-    lrow: &Vec<Value>,
-    rcols: &Vec<String>,
-    rrow: &Vec<Value>,
-) -> Result<Value> {
-    match expr {
-        Expression::Field(col_name) => {
-            let lcol_pos = match lcols.iter().position(|c| *c == *col_name) {
-                Some(pos) => pos,
-                None => {
-                    return Err(Error::Internal(format!(
-                        "Column {} not found in table",
-                        col_name
-                    )));
-                }
-            };
-            Ok(lrow[lcol_pos].clone())
-        }
-        Expression::Operation(operation) => match operation {
-            crate::sql::parser::ast::Operation::Equal(lexpr, rexpr) => {
-                let lv = evaluate_expr(lexpr, lcols, lrow, rcols, rrow)?;
-                let rv = evaluate_expr(rexpr, rcols, rrow, lcols, lrow)?;
-                Ok(match (lv, rv) {
-                    // (Value::Null, _) | (_, Value::Null) => Ok(Value::Bool(false)),
-                    (Value::Boolean(l), Value::Boolean(r)) => Value::Boolean(l == r),
-                    (Value::Integer(l), Value::Integer(r)) => Value::Boolean(l == r),
-                    (Value::Integer(l), Value::Float(r)) => Value::Boolean(l as f64 == r),
-                    (Value::Float(l), Value::Integer(r)) => Value::Boolean(l == r as f64),
-                    (Value::Float(l), Value::Float(r)) => Value::Boolean(l == r),
-                    (Value::String(l), Value::String(r)) => Value::Boolean(l == r),
-                    (_, Value::Null) => Value::Null,
-                    (Value::Null, _) => Value::Null,
-                    (l, r) => {
-                        return Err(Error::Internal(format!(
-                            "can not compare expression {} and {}",
-                            l, r
-                        )));
-                    }
-                })
-            }
-        },
-        _ => Err(Error::Internal(
-            "Unsupported expression in join predicate".into(),
-        )),
     }
 }

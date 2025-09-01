@@ -74,11 +74,7 @@ pub trait Transaction {
     fn delete_row(&mut self, table: &Table, id: &Value) -> Result<()>;
 
     // 扫描表
-    fn scan_table(
-        &self,
-        table_name: String,
-        filter: Option<(String, Expression)>,
-    ) -> Result<Vec<Row>>;
+    fn scan_table(&self, table_name: String, filter: Option<Expression>) -> Result<Vec<Row>>;
 
     // DDL 相关操作
     fn create_table(&mut self, table: Table) -> Result<()>;

@@ -6,6 +6,7 @@ use crate::error::Result;
 use crate::sql::engine::Engine;
 use crate::sql::engine::Transaction;
 use crate::sql::parser::ast::Expression;
+use crate::sql::parser::ast::evaluate_expr;
 use crate::sql::schema::Table;
 use crate::sql::types::Row;
 use crate::sql::types::Value;
@@ -127,11 +128,7 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
         Ok(())
     }
 
-    fn scan_table(
-        &self,
-        table_name: String,
-        filter: Option<(String, Expression)>,
-    ) -> Result<Vec<Row>> {
+    fn scan_table(&self, table_name: String, filter: Option<Expression>) -> Result<Vec<Row>> {
         let table = self.must_get_table(table_name.clone())?;
         let prefix_enc = KeyPrefix::Row(table_name.clone()).encode()?;
         let results = self.txn.scan_prefix(prefix_enc)?;
@@ -140,10 +137,17 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
         for result in results {
             // 过滤数据
             let row: Row = bincode::deserialize(&result.value)?;
-            if let Some((col, expr)) = &filter {
-                let col_index = table.get_col_index(&col)?;
-                if Value::from_expression(expr.clone()) == row[col_index] {
-                    rows.push(row);
+            if let Some(expr) = &filter {
+                // let col_index = table.get_col_index(&col)?;
+                // if Value::from_expression(expr.clone()) == row[col_index] {
+                //     rows.push(row);
+                // }
+                let cols = table.columns.iter().map(|c| c.name.clone()).collect();
+                match evaluate_expr(expr, &cols, &row, &cols, &row)? {
+                    Value::Null => {}
+                    Value::Boolean(false) => {}
+                    Value::Boolean(true) => rows.push(row),
+                    _ => return Err(Error::Internal("Unexpected expression".into())),
                 }
             } else {
                 rows.push(row);
@@ -807,7 +811,60 @@ mod tests {
         }
 
         std::fs::remove_dir_all(p.parent().unwrap())?;
+        Ok(())
+    }
 
+    #[test]
+    fn test_filter() -> Result<()> {
+        let p = tempfile::tempdir()?.keep().join("sqldb-log");
+        let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
+        let mut s = kvengine.session()?;
+
+        s.execute("create table t1 (a int primary key, b text, c float);")?;
+        s.execute("insert into t1 values(1, 'aa', 3.1);")?;
+        s.execute("insert into t1 values(2, 'bb', 5.3);")?;
+        s.execute("insert into t1 values(3, null, NULL);")?;
+        s.execute("insert into t1 values(4, null, 4.6);")?;
+        s.execute("insert into t1 values(5, 'bb', 5.8);")?;
+        s.execute("insert into t1 values(6, 'dd', 1.4);")?;
+
+        match s.execute("select * from t1 where a = 3;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ group by ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select * from t1 where a > 3;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ group by ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match s.execute("select * from t1 where a < 3;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ group by ------");
+
+                for row in rows {
+                    println!("{:?}", row);
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        std::fs::remove_dir_all(p.parent().unwrap())?;
         Ok(())
     }
 }

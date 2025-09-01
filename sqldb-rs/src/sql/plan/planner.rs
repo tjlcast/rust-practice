@@ -1,5 +1,5 @@
 use crate::sql::{
-    parser::ast::{self, JoinType, Operation},
+    parser::ast::{self, Expression, JoinType, Operation},
     plan::{Node, Plan},
     schema::{self, Table},
     types::Value,
@@ -57,6 +57,7 @@ impl Planner {
             ast::Statement::Select {
                 select,
                 from,
+                where_clause,
                 group_by,
                 order_by,
                 limit,
@@ -71,7 +72,7 @@ impl Planner {
                 // };
 
                 // from
-                let mut node = self.build_from_item(from)?;
+                let mut node = self.build_from_item(from, &where_clause)?;
 
                 // aggregate
                 let mut has_agg = false;
@@ -160,11 +161,11 @@ impl Planner {
         })
     }
 
-    fn build_from_item(&self, item: ast::FromItem) -> Result<Node> {
+    fn build_from_item(&self, item: ast::FromItem, filter: &Option<Expression>) -> Result<Node> {
         Ok(match item {
             ast::FromItem::Table { name } => Node::Scan {
                 table_name: name,
-                filter: None,
+                filter: filter.clone(),
             },
             ast::FromItem::Join {
                 left,
@@ -197,8 +198,8 @@ impl Planner {
                 };
 
                 Node::NestedLoopJoin {
-                    left: Box::new(self.build_from_item(*left)?),
-                    right: Box::new(self.build_from_item(*right)?),
+                    left: Box::new(self.build_from_item(*left, filter)?),
+                    right: Box::new(self.build_from_item(*right, filter)?),
                     predicate,
                     outer,
                 }

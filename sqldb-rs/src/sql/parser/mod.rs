@@ -94,15 +94,16 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_where_clause(&mut self) -> Result<Option<(String, ast::Expression)>> {
+    fn parse_where_clause(&mut self) -> Result<Option<Expression>> {
         if self.next_if_token(Token::Keyword(Keyword::Where)).is_none() {
             return Ok(None);
         }
 
-        let col = self.next_indent()?;
-        self.next_expect(Token::Equal)?;
-        let value = self.parse_expression()?;
-        Ok(Some((col, value)))
+        // let col = self.next_indent()?;
+        // self.next_expect(Token::Equal)?;
+        // let value = self.parse_expression()?;
+        // Ok(Some((col, value)))
+        Ok(Some(self.parse_operation_expr()?))
     }
 
     // 解析 order by 子句
@@ -208,6 +209,7 @@ impl<'a> Parser<'a> {
         Ok(ast::Statement::Select {
             select,
             from,
+            where_clause: self.parse_where_clause()?,
             group_by: self.parse_group_clause()?,
             order_by: self.parse_order_by_clause()?,
             limit: {
@@ -421,6 +423,26 @@ impl<'a> Parser<'a> {
         Ok(select)
     }
 
+    fn parse_operation_expr(&mut self) -> Result<Expression> {
+        let left = self.parse_expression()?;
+
+        Ok(match self.next()? {
+            Token::Equal => Expression::Operation(Operation::Equal(
+                Box::new(left),
+                Box::new(self.parse_expression()?),
+            )),
+            Token::GreaterThan => Expression::Operation(Operation::GreaterThan(
+                Box::new(left),
+                Box::new(self.parse_expression()?),
+            )),
+            Token::LessThan => Expression::Operation(Operation::LessThan(
+                Box::new(left),
+                Box::new(self.parse_expression()?),
+            )),
+            _ => return Err(Error::Internal("Unexpected token".into())),
+        })
+    }
+
     // 解析表达式
     fn parse_expression(&mut self) -> Result<ast::Expression> {
         Ok(match self.next()? {
@@ -542,7 +564,7 @@ mod tests {
     use super::*;
     use crate::{
         error::Result,
-        sql::parser::ast::{Expression, FromItem, JoinType, Statement},
+        sql::parser::ast::{Consts, Expression, FromItem, JoinType, Statement},
     };
 
     #[test]
@@ -850,10 +872,33 @@ mod tests {
                 from: ast::FromItem::Table {
                     name: "tbl1".to_string(),
                 },
+                where_clause: None,
                 group_by: None,
                 order_by: vec![],
                 limit: None,
                 offset: None,
+            }
+        );
+
+        let sql1 = "
+            select * from tbl1 where a = 100 limit 10 offset 20;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                select: vec![],
+                from: ast::FromItem::Table {
+                    name: "tbl1".to_string(),
+                },
+                where_clause: Some(Expression::Operation(Operation::Equal(
+                    Box::new(Expression::Field("a".to_string())),
+                    Box::new(Expression::Consts(Consts::Integer(100))),
+                ))),
+                group_by: None,
+                order_by: vec![],
+                limit: Some(Expression::Consts(Consts::Integer(10))),
+                offset: Some(Expression::Consts(Consts::Integer(20))),
             }
         );
 
@@ -873,6 +918,7 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                where_clause: None,
                 group_by: None,
                 order_by: vec![
                     ("a".to_string(), OrderDirection::Asc),
@@ -900,6 +946,7 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                where_clause: None,
                 group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
@@ -927,6 +974,7 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                where_clause: None,
                 group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
@@ -961,6 +1009,7 @@ mod tests {
                     join_type: JoinType::Cross {},
                     predicate: None,
                 },
+                where_clause: None,
                 group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
@@ -997,6 +1046,7 @@ mod tests {
                     join_type: JoinType::Cross {},
                     predicate: None,
                 },
+                where_clause: None,
                 group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
@@ -1031,10 +1081,10 @@ mod tests {
                         None
                     )
                 ],
-
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                where_clause: None,
                 group_by: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
@@ -1073,6 +1123,7 @@ mod tests {
                 from: FromItem::Table {
                     name: "tbl1".to_string()
                 },
+                where_clause: None,
                 group_by: Some(ast::Expression::Field("a".into())),
                 order_by: vec![],
                 limit: None,
@@ -1100,10 +1151,10 @@ mod tests {
                 ]
                 .into_iter()
                 .collect(),
-                where_clause: Some((
-                    "c".to_string(),
-                    Expression::Consts(ast::Consts::String("a".to_string())),
-                )),
+                where_clause: Some(Expression::Operation(Operation::Equal(
+                    Box::new(Expression::Field("c".into())),
+                    Box::new(Expression::Consts(Consts::String("a".into()))),
+                ))),
             }
         );
 

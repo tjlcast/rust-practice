@@ -28,8 +28,10 @@ values (expr [,...]);
 ### 3. Query Data
 ``` sql
 SELECT [ * | column_name | function [ [ AS ] output_name [, ...]] ]
-FROM table_name;
+FROM table_name
+[WHERE expr]
 [GROUP BY col_name]
+[HAVING expr]
 [ORDER BY col_name [asc | desc] [, ...]]
 [LIMIT count]
 [OFFSET count]
