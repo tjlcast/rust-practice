@@ -25,29 +25,6 @@ pub trait Executor<T: Transaction> {
     fn execute(self: Box<Self>, txn: &mut T) -> Result<ResultSet>;
 }
 
-// 执行结果集
-#[derive(Debug, PartialEq)]
-pub enum ResultSet {
-    CreateTable {
-        table_name: String,
-    },
-
-    Insert {
-        count: usize,
-    },
-
-    Scan {
-        columns: Vec<String>,
-        rows: Vec<Row>,
-    },
-    Update {
-        count: usize,
-    },
-    Delete {
-        count: usize,
-    },
-}
-
 ///
 /// 为什么写成 impl<T: Transaction> dyn Executor<T> { ... }？
 /// 不是给某个具体类型实现 trait，而是给trait object 类型本身附加一个静态方法。
@@ -113,6 +90,63 @@ impl<T: Transaction + 'static> dyn Executor<T> {
                 exprs,
                 group_by,
             } => agg::Aggregate::new(Self::build(*source), exprs, group_by),
+        }
+    }
+}
+
+// 执行结果集
+#[derive(Debug, PartialEq)]
+pub enum ResultSet {
+    CreateTable {
+        table_name: String,
+    },
+
+    Insert {
+        count: usize,
+    },
+
+    Scan {
+        columns: Vec<String>,
+        rows: Vec<Row>,
+    },
+    Update {
+        count: usize,
+    },
+    Delete {
+        count: usize,
+    },
+}
+
+impl ResultSet {
+    pub fn to_string(&self) -> String {
+        match self {
+            ResultSet::CreateTable { table_name } => {
+                format!("CREATE TABLE {}", table_name)
+            }
+            ResultSet::Insert { count } => {
+                format!("INSERT {} ROWS.", count)
+            }
+            ResultSet::Scan { columns, rows } => {
+                let columns = columns.join(" | ");
+                let rows_len = rows.len();
+                let rows = rows
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join(" | ")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                format!("{}\n{}\n({} rows)", columns, rows, rows_len)
+            }
+            ResultSet::Update { count } => {
+                format!("UPDATE {} ROWS.", count)
+            }
+            ResultSet::Delete { count } => {
+                format!("DELETE {} ROWS.", count)
+            }
         }
     }
 }

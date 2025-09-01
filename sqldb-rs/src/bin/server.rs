@@ -20,6 +20,41 @@ enum SqlRequest {
     TableInfo(String),
 }
 
+#[tokio::main]
+async fn main() -> Result<()> {
+    // 配置
+    let addr = env::args()
+        .nth(1)
+        .unwrap_or_else(|| "127.0.0.1:8080".to_string());
+
+    // 初始化 TCP 服务
+    let listener = TcpListener::bind(&addr).await?;
+    println!("sqldb server start on, listening on: {addr}");
+
+    // 初始化 DB 实例
+    let p = tempfile::tempdir()?.into_path().join("sqldb-log");
+    println!("sqldb store int path: {p:?}");
+    let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
+    let shared_engine = Arc::new(Mutex::new(kvengine));
+
+    loop {
+        match listener.accept().await {
+            Ok((socket, _)) => {
+                let db = shared_engine.clone();
+                let mut server_session = ServerSession::new(db.lock()?)?;
+
+                tokio::spawn(async move {
+                    match server_session.handle_request(socket).await {
+                        Ok(_) => todo!(),
+                        Err(_) => todo!(),
+                    }
+                });
+            }
+            Err(e) => println!("error accepting socket; error = {e:?}"),
+        }
+    }
+}
+
 pub struct ServerSession<E: sql::engine::Engine> {
     session: sql::engine::Session<E>,
 }
@@ -41,19 +76,20 @@ impl<E: sql::engine::Engine + 'static> ServerSession<E> {
                     let req = SqlRequest::SQL(line);
 
                     // 执行请求
-                    match req {
-                        SqlRequest::SQL(sql) => {
-                            let resp = self.session.execute(&sql)?;
-                            println!("execute sql result: {:?}", resp);
-                        }
+                    let res = match req {
+                        SqlRequest::SQL(sql) => self.session.execute(&sql),
                         SqlRequest::ListTables => todo!(),
                         SqlRequest::TableInfo(_) => todo!(),
-                    }
+                    };
 
-                    // let response = response.serialize();
-                    // if let Err(e) = lines.send(response.as_str()).await {
-                    //     println!("error on sending response; error = {e:?}");
-                    // }
+                    // 发送执行结果
+                    let response = match res {
+                        Ok(rs) => rs.to_string(),
+                        Err(e) => e.to_string(),
+                    };
+                    if let Err(e) = lines.send(response.as_str()).await {
+                        println!("error on sending response; error = {e:?}");
+                    }
                 }
                 Err(e) => {
                     println!("error on decoding from socket; error = {e:?}");
@@ -62,40 +98,6 @@ impl<E: sql::engine::Engine + 'static> ServerSession<E> {
         }
 
         Ok(())
-    }
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // 配置
-    let addr = env::args()
-        .nth(1)
-        .unwrap_or_else(|| "127.0.0.1:8080".to_string());
-
-    // 初始化 TCP 服务
-    let listener = TcpListener::bind(&addr).await?;
-    println!("sqldb server start on, listening on: {addr}");
-
-    // 初始化 DB 实例
-    let p = tempfile::tempdir()?.into_path().join("sqldb-log");
-    let kvengine = KVEngine::new(DiskEngine::new(p.clone())?);
-    let shared_engine = Arc::new(Mutex::new(kvengine));
-
-    loop {
-        match listener.accept().await {
-            Ok((socket, _)) => {
-                let db = shared_engine.clone();
-                let mut server_session = ServerSession::new(db.lock()?)?;
-
-                tokio::spawn(async move {
-                    match server_session.handle_request(socket).await {
-                        Ok(_) => todo!(),
-                        Err(_) => todo!(),
-                    }
-                });
-            }
-            Err(e) => println!("error accepting socket; error = {e:?}"),
-        }
     }
 }
 
