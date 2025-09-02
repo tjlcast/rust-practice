@@ -59,6 +59,10 @@ pub struct ServerSession<E: sql::engine::Engine> {
     session: sql::engine::Session<E>,
 }
 
+// tokio::spawn 需要保证任务中使用的所有数据在任务执行期间都有效。
+// 由于异步任务可能在任意时间执行，Rust 要求所有捕获的
+// 数据都是 'static 的（要么是拥有的数据，要么是静态引用）。
+// tips: tokio::spawn 要求的是：任务捕获的所有数据必须能够独立存在，不依赖于外部作用域。(不在其他作用域中)
 impl<E: sql::engine::Engine + 'static> ServerSession<E> {
     pub fn new(eng: MutexGuard<E>) -> Result<Self> {
         Ok(Self {
