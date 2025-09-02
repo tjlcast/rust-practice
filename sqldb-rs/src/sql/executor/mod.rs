@@ -127,19 +127,46 @@ impl ResultSet {
                 format!("INSERT {} ROWS.", count)
             }
             ResultSet::Scan { columns, rows } => {
-                let columns = columns.join(" | ");
                 let rows_len = rows.len();
+
+                // 找到每一列最大的长度
+                let mut max_len = columns.iter().map(|c| c.len()).collect::<Vec<_>>();
+                for one_row in rows {
+                    for (i, v) in one_row.iter().enumerate() {
+                        max_len[i] = max_len[i].max(v.to_string().len());
+                    }
+                }
+
+                // 展示列
+                let columns = columns
+                    .iter()
+                    .zip(max_len.iter())
+                    .map(|(col, &len)| format!("{:width$}", col, width = len))
+                    .collect::<Vec<_>>()
+                    .join(" |");
+
+                // 展示分隔符
+                let sep = max_len
+                    .iter()
+                    .map(|v| format!("{}", "-".repeat(*v+1)))
+                    .collect::<Vec<_>>()
+                    .join("+");
+
+                // 展示列的数据
                 let rows = rows
                     .iter()
                     .map(|row| {
                         row.iter()
-                            .map(|v| v.to_string())
+                            .zip(max_len.iter())
+                            .map(|(v, &len)| format!("{:width$}", v.to_string(), width = len))
                             .collect::<Vec<_>>()
-                            .join(" | ")
+                            .join(" |")
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
-                format!("{}\n{}\n({} rows)", columns, rows, rows_len)
+
+                // 组合结果
+                format!("{}\n{}\n{}\n({} rows)", columns, sep, rows, rows_len)
             }
             ResultSet::Update { count } => {
                 format!("UPDATE {} ROWS.", count)
