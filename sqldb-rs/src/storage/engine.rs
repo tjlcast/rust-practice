@@ -22,12 +22,26 @@ pub trait Engine {
 
     // 前缀扫描
     fn scan_prefix(&mut self, prefix: Vec<u8>) -> Self::EngineIterator<'_> {
+        // start:   aaaa
+        // end:     aaab
         let start = Bound::Included(prefix.clone());
         let mut bound_prefix = prefix.clone();
-        if let Some(last) = bound_prefix.iter_mut().last() {
-            *last += 1;
-        }
-        let end = Bound::Excluded(bound_prefix);
+        // 前缀包含了 255， 例如 10, 2, 3, 255
+        // 右边界就是 10, 2, 4
+        // 如果全部是 255
+        // 右边界  Unbounded
+        // if let Some(last) = bound_prefix.iter_mut().last() {
+        //     *last += 1;
+        // }
+        // let end = Bound::Excluded(bound_prefix);
+        let end = match bound_prefix.iter().rposition(|b| *b != 255) {
+            Some(pos) => {
+                bound_prefix[pos] += 1;
+                bound_prefix.truncate(pos + 1);
+                Bound::Excluded(bound_prefix)
+            },
+            None => Bound::Unbounded,
+        };
 
         // 注意这里scan是利用了BtreeMap的range方法，并且BTreeMap的key是字典序（字节序）排序的。类似于字符串的比较方式
         self.scan((start, end))

@@ -53,6 +53,20 @@ impl<E: Engine + 'static> Session<E> {
             }
         }
     }
+
+    pub fn get_table(&self, table_name: String) -> Result<String> {
+        let txn = self.engine.begin()?;
+        let table = txn.must_get_table(table_name)?;
+        txn.commit()?;
+        Ok(table.to_string())
+    }
+
+    pub fn get_table_names(&self) -> Result<String> {
+        let txn = self.engine.begin()?;
+        let names = txn.get_table_names()?;
+        txn.commit()?;
+        Ok(names.join("\n"))
+    }
 }
 
 // 抽象的事务信息，包含了 DDL 和 DML 操作
@@ -77,6 +91,11 @@ pub trait Transaction {
     fn scan_table(&self, table_name: String, filter: Option<Expression>) -> Result<Vec<Row>>;
 
     // DDL 相关操作
+
+    // 获取所有的表名
+    fn get_table_names(&self) -> Result<Vec<String>>;
+
+    // 创建表
     fn create_table(&mut self, table: Table) -> Result<()>;
 
     // 获取表信息

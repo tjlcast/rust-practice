@@ -156,6 +156,17 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
         Ok(rows)
     }
 
+    fn get_table_names(&self) -> Result<Vec<String>> {
+        let prefix = KeyPrefix::Table.encode()?;
+        let results = self.txn.scan_prefix(prefix)?;
+        let mut names = Vec::new();
+        for result in results {
+            let table: Table = bincode::deserialize(&result.value)?;
+            names.push(table.name);
+        }
+        Ok(names)
+    }
+
     fn create_table(&mut self, table: Table) -> Result<()> {
         // 判断表是否存在
         if self.get_table(table.name.clone())?.is_some() {

@@ -13,16 +13,18 @@ const RESPONSE_END: &str = "!!!end!!!";
 
 pub struct Client {
     addr: SocketAddr,
+    stream: TcpStream,
 }
 
 impl Client {
-    pub fn new(addr: SocketAddr) -> Self {
-        Self { addr }
+    pub async fn new(addr: SocketAddr) -> Result<Self, Box<dyn Error>> {
+        let mut stream = TcpStream::connect(&addr).await?;
+        Ok(Self { addr, stream })
     }
 
-    pub async fn execute_sql(&self, sql_cmd: &str) -> Result<(), Box<dyn Error>> {
-        let mut stream = TcpStream::connect(&self.addr).await?;
-        let (r, w) = stream.split();
+    pub async fn execute_sql(&mut self, sql_cmd: &str) -> Result<(), Box<dyn Error>> {
+        // let mut stream = TcpStream::connect(&self.addr).await?;
+        let (r, w) = self.stream.split();
         let mut sink = FramedWrite::new(w, LinesCodec::new());
         let mut stream = FramedRead::new(r, LinesCodec::new());
 
@@ -47,7 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Try to connect to {}", addr);
 
     let addr = addr.parse::<SocketAddr>()?;
-    let client = Client::new(addr);
+    let mut client = Client::new(addr).await?;
 
     let mut editor = DefaultEditor::new()?;
     loop {
