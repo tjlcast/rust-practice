@@ -13,18 +13,58 @@ const RESPONSE_END: &str = "!!!end!!!";
 
 pub struct Client {
     addr: SocketAddr,
-    stream: TcpStream,
+    stream: Option<TcpStream>,
 }
 
 impl Client {
     pub async fn new(addr: SocketAddr) -> Result<Self, Box<dyn Error>> {
-        let mut stream = TcpStream::connect(&addr).await?;
+        let stream = match TcpStream::connect(&addr).await {
+            Ok(stream) => Some(stream),
+            Err(e) => {
+                eprintln!("Warning: Failed to connect to server: {}", e);
+                None
+            }
+        };
         Ok(Self { addr, stream })
     }
 
+    async fn reconnect(&mut self) -> Result<(), Box<dyn Error>> {
+        match TcpStream::connect(&self.addr).await {
+            Ok(stream) => {
+                self.stream = Some(stream);
+                println!("Successfully reconnected to {}", self.addr);
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("Failed to reconnect: {}", e);
+                Err(e.into())
+            }
+        }
+    }
+
     pub async fn execute_sql(&mut self, sql_cmd: &str) -> Result<(), Box<dyn Error>> {
-        // let mut stream = TcpStream::connect(&self.addr).await?;
-        let (r, w) = self.stream.split();
+        // 如果没有链接，尝试重新连接
+        if self.stream.is_none() {
+            println!("No connection, trying to reconnect...");
+            self.reconnect().await?;
+        }
+
+        // 尝试发送命令
+        let result = self.execute_sql_internal(sql_cmd).await;
+
+        // 如果执行失败，尝试重连并再次执行
+        if result.is_err() {
+            eprintln!("Connection error, trying to reconnect...");
+            self.reconnect().await?;
+            return self.execute_sql_internal(sql_cmd).await;
+        }
+
+        result
+    }
+
+    async fn execute_sql_internal(&mut self, sql_cmd: &str) -> Result<(), Box<dyn Error>> {
+        let stream = self.stream.as_mut().ok_or("No connection available")?;
+        let (r, w) = stream.split();
         let mut sink = FramedWrite::new(w, LinesCodec::new());
         let mut stream = FramedRead::new(r, LinesCodec::new());
 

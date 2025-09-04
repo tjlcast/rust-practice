@@ -34,10 +34,12 @@ pub trait Engine {
         //     *last += 1;
         // }
         // let end = Bound::Excluded(bound_prefix);
+        // 这里主要利用 scan 中的 BTreeMap的range方法（字典顺序的比较）
         let end = match bound_prefix.iter().rposition(|b| *b != 255) {
             Some(pos) => {
                 bound_prefix[pos] += 1;
                 bound_prefix.truncate(pos + 1);
+                // 思考，这里的 truncate 其实就是赋值0。整体等于运算中的归零进位操作
                 Bound::Excluded(bound_prefix)
             },
             None => Bound::Unbounded,
