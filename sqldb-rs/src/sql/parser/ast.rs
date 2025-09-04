@@ -21,6 +21,7 @@ pub enum Statement {
         from: FromItem,
         where_clause: Option<Expression>,
         group_by: Option<Expression>,
+        having: Option<Expression>,
         order_by: Vec<(String, OrderDirection)>,
         limit: Option<Expression>,
         offset: Option<Expression>,

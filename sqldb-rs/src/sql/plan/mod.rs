@@ -84,6 +84,11 @@ pub enum Node {
         exprs: Vec<(Expression, Option<String>)>, // (表达式, 可选别名)
         group_by: Option<Expression>,
     },
+
+    Filter {
+        source: Box<Node>,
+        predicate: Expression,
+    },
 }
 
 // 执行计划定义，底层是不同类型执行节点

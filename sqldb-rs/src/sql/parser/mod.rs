@@ -211,6 +211,7 @@ impl<'a> Parser<'a> {
             from,
             where_clause: self.parse_where_clause()?,
             group_by: self.parse_group_clause()?,
+            having: self.parse_having_clause()?,
             order_by: self.parse_order_by_clause()?,
             limit: {
                 if self.next_if_token(Token::Keyword(Keyword::Limit)).is_some() {
@@ -365,6 +366,16 @@ impl<'a> Parser<'a> {
 
         self.next_expect(Token::Keyword(Keyword::By))?;
         Ok(Some(self.parse_expression()?))
+    }
+
+    fn parse_having_clause(&mut self) -> Result<Option<Expression>> {
+        if self
+            .next_if_token(Token::Keyword(Keyword::Having))
+            .is_none()
+        {
+            return Ok(None);
+        }
+        Ok(Some(self.parse_operation_expr()?))
     }
 
     fn parse_from_table_clause(&mut self) -> Result<FromItem> {
@@ -874,6 +885,7 @@ mod tests {
                 },
                 where_clause: None,
                 group_by: None,
+                having: None,
                 order_by: vec![],
                 limit: None,
                 offset: None,
@@ -896,6 +908,7 @@ mod tests {
                     Box::new(Expression::Consts(Consts::Integer(100))),
                 ))),
                 group_by: None,
+                having: None,
                 order_by: vec![],
                 limit: Some(Expression::Consts(Consts::Integer(10))),
                 offset: Some(Expression::Consts(Consts::Integer(20))),
@@ -925,6 +938,7 @@ mod tests {
                     ("b".to_string(), OrderDirection::Asc),
                     ("c".to_string(), OrderDirection::Desc)
                 ],
+                having: None,
                 limit: None,
                 offset: None,
             }
@@ -948,6 +962,7 @@ mod tests {
                 },
                 where_clause: None,
                 group_by: None,
+                having: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -976,6 +991,7 @@ mod tests {
                 },
                 where_clause: None,
                 group_by: None,
+                having: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -1011,6 +1027,7 @@ mod tests {
                 },
                 where_clause: None,
                 group_by: None,
+                having: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -1048,6 +1065,7 @@ mod tests {
                 },
                 where_clause: None,
                 group_by: None,
+                having: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -1086,6 +1104,7 @@ mod tests {
                 },
                 where_clause: None,
                 group_by: None,
+                having: None,
                 order_by: vec![],
                 limit: Expression::Consts(ast::Consts::Integer(10)).into(),
                 offset: Expression::Consts(ast::Consts::Integer(20)).into(),
@@ -1125,6 +1144,50 @@ mod tests {
                 },
                 where_clause: None,
                 group_by: Some(ast::Expression::Field("a".into())),
+                having: None,
+                order_by: vec![],
+                limit: None,
+                offset: None,
+            }
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_having_select() -> Result<()> {
+        let sql1 = "
+            select count(a), min(b), max(c) from tbl1 group by a having count = 10;
+        ";
+        let stmt1_or_err = Parser::new(sql1).parse()?;
+        println!("{:?}", stmt1_or_err);
+        assert_eq!(
+            stmt1_or_err,
+            Statement::Select {
+                select: vec![
+                    (
+                        Expression::Function("count".to_string(), "a".to_string()),
+                        None
+                    ),
+                    (
+                        Expression::Function("min".to_string(), "b".to_string()),
+                        None
+                    ),
+                    (
+                        Expression::Function("max".to_string(), "c".to_string()),
+                        None
+                    )
+                ],
+
+                from: FromItem::Table {
+                    name: "tbl1".to_string()
+                },
+                where_clause: None,
+                group_by: Some(ast::Expression::Field("a".into())),
+                having: Some(ast::Expression::Operation(Operation::Equal(
+                    Box::new(Expression::Field("count".into())),
+                    Box::new(Expression::Consts(Consts::Integer(10)))
+                ))),
                 order_by: vec![],
                 limit: None,
                 offset: None,

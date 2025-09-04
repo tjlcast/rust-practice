@@ -875,6 +875,20 @@ mod tests {
             _ => unreachable!(),
         }
 
+        match s.execute("select b, sum(c) from t1 group by b having sum > 5;")? {
+            ResultSet::Scan { columns, rows } => {
+                println!("columns: {:?}", columns);
+                println!("------ group by ------");
+
+                for row in &rows {
+                    println!("{:?}", row);
+                }
+
+                assert!(rows.len() == 1)
+            }
+            _ => unreachable!(),
+        }
+
         std::fs::remove_dir_all(p.parent().unwrap())?;
         Ok(())
     }

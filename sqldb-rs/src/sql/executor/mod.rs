@@ -7,7 +7,7 @@ use crate::{
         executor::{
             join::NestedLoopJoin,
             mutation::{Delete, Insert, Update},
-            query::{Limit, Offset, Order, Projection, Scan},
+            query::{Filter, Limit, Offset, Order, Projection, Scan},
         },
     },
 };
@@ -90,6 +90,7 @@ impl<T: Transaction + 'static> dyn Executor<T> {
                 exprs,
                 group_by,
             } => agg::Aggregate::new(Self::build(*source), exprs, group_by),
+            Node::Filter { source, predicate } => Filter::new(Self::build(*source), predicate),
         }
     }
 }
@@ -148,7 +149,7 @@ impl ResultSet {
                 // 展示分隔符
                 let sep = max_len
                     .iter()
-                    .map(|v| format!("{}", "-".repeat(*v+1)))
+                    .map(|v| format!("{}", "-".repeat(*v + 1)))
                     .collect::<Vec<_>>()
                     .join("+");
 

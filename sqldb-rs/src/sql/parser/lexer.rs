@@ -43,6 +43,7 @@ pub enum Keyword {
     Right,
     On,
     Group,
+    Having,
 }
 
 impl Keyword {
@@ -88,6 +89,7 @@ impl Keyword {
             "RIGHT" => Self::Right,
             "ON" => Self::On,
             "GROUP" => Self::Group,
+            "HAVING" => Self::Having,
             _ => return None,
         })
     }
@@ -134,6 +136,7 @@ impl Keyword {
             Self::Right => "RIGHT",
             Self::On => "ON",
             Self::Group => "GROUP",
+            Self::Having => "HAVING",
         }
     }
 }
