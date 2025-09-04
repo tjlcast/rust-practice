@@ -44,6 +44,9 @@ pub enum Keyword {
     On,
     Group,
     Having,
+    Begin,
+    Commit,
+    Rollback,
 }
 
 impl Keyword {
@@ -90,6 +93,9 @@ impl Keyword {
             "ON" => Self::On,
             "GROUP" => Self::Group,
             "HAVING" => Self::Having,
+            "BEGIN" => Self::Begin,
+            "COMMIT" => Self::Commit,
+            "ROLLBACK" => Self::Rollback,
             _ => return None,
         })
     }
@@ -137,6 +143,9 @@ impl Keyword {
             Self::On => "ON",
             Self::Group => "GROUP",
             Self::Having => "HAVING",
+            Self::Begin => "BEGIN",
+            Self::Commit => "COMMIT",
+            Self::Rollback => "ROLLBACK",
         }
     }
 }

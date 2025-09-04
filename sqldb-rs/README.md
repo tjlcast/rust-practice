@@ -70,6 +70,26 @@ DELETE FROM table_name
 
 where condition is: `column_name = expr`
 
+### 6. Show Table
+``` sql
+SHOW TABLES;
+```
+
+or 
+
+``` sql
+SHOW TABLE [table_name];
+```
+
+### 7. Transaction
+``` sql
+BEGIN;
+
+COMMIT;
+
+ROLLBACK;
+```
+
 ## 数据模型
 
 以下是模块依赖关系图，展示了各个模块之间的依赖关系：

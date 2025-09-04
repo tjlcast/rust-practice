@@ -1,8 +1,11 @@
-use crate::sql::{
-    parser::ast::{self, Expression, JoinType, Operation},
-    plan::{Node, Plan},
-    schema::{self, Table},
-    types::Value,
+use crate::{
+    error::Error,
+    sql::{
+        parser::ast::{self, Expression, JoinType, Operation},
+        plan::{Node, Plan},
+        schema::{self, Table},
+        types::Value,
+    },
 };
 
 use crate::error::Result;
@@ -167,6 +170,9 @@ impl Planner {
                     filter: where_clause,
                 }),
             },
+            ast::Statement::Begin | ast::Statement::Commit | ast::Statement::Rollback => {
+                return Err(Error::Internal("unexpected transaction command".into()));
+            }
         })
     }
 

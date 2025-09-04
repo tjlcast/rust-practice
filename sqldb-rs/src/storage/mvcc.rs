@@ -98,6 +98,11 @@ impl MvccKeyPrefix {
 }
 
 impl<E: StorageEngine> MvccTransaction<E> {
+    // 获取版本号
+    pub fn version(&self) -> u64 {
+        self.state.version
+    }
+
     // 开启事务
     pub fn begin(eng: Arc<Mutex<E>>) -> Result<Self> {
         // Self { engine: eng }

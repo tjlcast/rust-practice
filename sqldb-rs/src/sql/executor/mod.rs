@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use schema::CreateTable;
 
 use crate::{
@@ -116,6 +118,15 @@ pub enum ResultSet {
     Delete {
         count: usize,
     },
+    Begin {
+        version: u64,
+    },
+    Commit {
+        version: u64,
+    },
+    Rollback {
+        version: u64,
+    },
 }
 
 impl ResultSet {
@@ -175,6 +186,9 @@ impl ResultSet {
             ResultSet::Delete { count } => {
                 format!("DELETE {} ROWS.", count)
             }
+            ResultSet::Begin { version } => format!("TRANSACTION {} BEGIN", version),
+            ResultSet::Commit { version } => format!("TRANSACTION {} COMMIT", version),
+            ResultSet::Rollback { version } => format!("TRANSACTION {} ROLLBACK", version),
         }
     }
 }

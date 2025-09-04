@@ -14,6 +14,7 @@ const RESPONSE_END: &str = "!!!end!!!";
 pub struct Client {
     addr: SocketAddr,
     stream: Option<TcpStream>,
+    txn_version: Option<u64>,
 }
 
 impl Client {
@@ -25,7 +26,11 @@ impl Client {
                 None
             }
         };
-        Ok(Self { addr, stream })
+        Ok(Self {
+            addr,
+            stream,
+            txn_version: None,
+        })
     }
 
     async fn reconnect(&mut self) -> Result<(), Box<dyn Error>> {
@@ -72,11 +77,22 @@ impl Client {
         sink.send(sql_cmd).await?;
 
         // 拿到结果并打印
-        while let Some(val) = stream.try_next().await? {
-            if val == RESPONSE_END {
+        while let Some(res) = stream.try_next().await? {
+            if res == RESPONSE_END {
                 break;
             }
-            println!("{}", val);
+            // 解析事务命令
+            if res.starts_with("TRANSACTION") {
+                let args = res.split(" ").collect::<Vec<_>>();
+                if args[2] == "COMMIT" || args[2] == "ROLLBACK" {
+                    self.txn_version = None;
+                }
+                if args[2] == "BEGIN" {
+                    let version = args[1].parse::<u64>().unwrap();
+                    self.txn_version = Some(version);
+                }
+            }
+            println!("{}", res);
         }
 
         Ok(())
@@ -93,7 +109,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut editor = DefaultEditor::new()?;
     loop {
-        let readline = editor.readline("sqldb> ");
+        let prompt = match client.txn_version {
+            Some(version) => format!("sqldb[#{}]>", version),
+            None => "sqldb>".into(),
+        };
+        let readline = editor.readline(&prompt);
         match readline {
             Ok(sql_cmd) => {
                 let sql_cmd = sql_cmd.trim();

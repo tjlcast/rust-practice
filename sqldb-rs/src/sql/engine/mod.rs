@@ -23,6 +23,7 @@ pub trait Engine: Clone {
     fn session(&self) -> Result<Session<Self>> {
         Ok(Session {
             engine: self.clone(),
+            txn: None,
         })
     }
 }
@@ -30,12 +31,43 @@ pub trait Engine: Clone {
 // 客户端 session 定义
 pub struct Session<E: Engine> {
     engine: E,
+    txn: Option<E::Transaction>,
 }
 
 impl<E: Engine + 'static> Session<E> {
+    // 执行客户端 SQL 语句
     pub fn execute(&mut self, sql: &str) -> Result<ResultSet> {
         // SQL -- Parser --> STMT(AST) -- Planner --> Node(Plan)[data_schema, data_type] --> build_and_do_executor(in Node)
         match Parser::new(sql).parse()? {
+            super::parser::ast::Statement::Begin if self.txn.is_some() => {
+                Err(Error::Internal("Already in a transaction".into()))
+            }
+            super::parser::ast::Statement::Commit | super::parser::ast::Statement::Rollback
+                if self.txn.is_none() =>
+            {
+                Err(Error::Internal("Not in transaction".into()))
+            }
+            super::parser::ast::Statement::Begin => {
+                let txn = self.engine.begin()?;
+                let version = txn.version();
+                self.txn = Some(txn);
+                Ok(ResultSet::Begin { version })
+            }
+            super::parser::ast::Statement::Commit => {
+                let txn = self.txn.as_ref().unwrap();
+                let version = txn.version();
+                txn.commit()?;
+                self.txn = None;
+                Ok(ResultSet::Commit { version })
+            }
+            super::parser::ast::Statement::Rollback => {
+                let txn = self.txn.as_ref().unwrap();
+                let version = txn.version();
+                txn.rollback()?;
+                self.txn = None;
+                Ok(ResultSet::Rollback { version })
+            }
+            stmt if self.txn.is_some() => Plan::build(stmt)?.execute(self.txn.as_mut().unwrap()),
             stmt => {
                 let mut txn = self.engine.begin()?;
                 // 这里 execute 方法是使用执行器的工厂方法利用刚构建的事务创建执行器，并执行
@@ -77,6 +109,9 @@ pub trait Transaction {
 
     // 回滚事务
     fn rollback(&self) -> Result<()>;
+
+    // 版本号
+    fn version(&self) -> u64;
 
     // 创建行
     fn create_row(&mut self, table_name: String, row: Row) -> Result<()>;

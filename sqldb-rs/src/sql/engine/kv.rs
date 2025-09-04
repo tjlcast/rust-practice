@@ -65,6 +65,10 @@ impl<E: StorageEngine> Transaction for KVTransaction<E> {
         Ok(())
     }
 
+    fn version(&self) -> u64 {
+        self.txn.version()
+    }
+
     fn create_row(&mut self, table_name: String, row: Row) -> Result<()> {
         let table = self.must_get_table(table_name.clone())?;
         // 校验行的有效性
