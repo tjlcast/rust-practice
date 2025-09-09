@@ -87,16 +87,28 @@ impl<E: Engine + 'static> Session<E> {
     }
 
     pub fn get_table(&self, table_name: String) -> Result<String> {
-        let txn = self.engine.begin()?;
-        let table = txn.must_get_table(table_name)?;
-        txn.commit()?;
+        let table = match self.txn.as_ref() {
+            Some(txn) => txn.must_get_table(table_name)?,
+            None => {
+                let txn = self.engine.begin()?;
+                let table = txn.must_get_table(table_name)?;
+                txn.commit()?;
+                table
+            }
+        };
         Ok(table.to_string())
     }
 
     pub fn get_table_names(&self) -> Result<String> {
-        let txn = self.engine.begin()?;
-        let names = txn.get_table_names()?;
-        txn.commit()?;
+        let names = match self.txn.as_ref() {
+            Some(txn) => txn.get_table_names()?,
+            None => {
+                let txn = self.engine.begin()?;
+                let names = txn.get_table_names()?;
+                txn.commit()?;
+                names
+            }
+        };
         Ok(names.join("\n"))
     }
 }

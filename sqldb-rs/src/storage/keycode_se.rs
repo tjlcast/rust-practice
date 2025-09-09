@@ -85,8 +85,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_str(self, value: &str) -> Result<()> {
-        self.output.extend(value.as_bytes());
-        Ok(())
+        self.serialize_bytes(value.as_bytes())
     }
 
     // 00 表示结束，原值[0]转换为[0,255]

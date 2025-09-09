@@ -99,6 +99,14 @@ impl Client {
     }
 }
 
+impl Drop for Client {
+    fn drop(&mut self) {
+        if self.txn_version.is_some() {
+            futures::executor::block_on(self.execute_sql("ROLLBACK;")).expect("Rollback failed");
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let addr = env::args().nth(1).unwrap_or("127.0.0.1:8080".to_string());

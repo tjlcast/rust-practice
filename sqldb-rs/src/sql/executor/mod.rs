@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use schema::CreateTable;
 
 use crate::{
