@@ -1,0 +1,43 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug hello-actix",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=hello-actix",
+                    "--package=hello-actix"
+                ],
+                "filter": {
+                    "name": "hello-actix",
+                    "kind": "bin"
+                }
+            },
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_LOG": "debug"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug hello-actix (Release)",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=hello-actix",
+                    "--package=hello-actix"
+                ],
+                "filter": {
+                    "name": "hello-actix",
+                    "kind": "bin"
+                }
+            },
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

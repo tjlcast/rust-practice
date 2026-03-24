@@ -1,0 +1,16 @@
+[package]
+name = "hello-actix"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4"
+
+serde = { version = "1.0.145", features = ["derive"] }
+serde_json = { version = "1.0.2", optional = true }
+nanoid = "0.4.0"
+
+
+[[bin]]
+name = "hello-actix"
+path = "src/main.rs"
