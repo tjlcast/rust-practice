@@ -1,0 +1,42 @@
+
+  curl -X POST http://121.40.102.152:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "who are you?"
+      }
+    ],
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    "stream": false
+  }'
+
+
+
+
+  
+  curl -X POST http://121.40.102.152:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "chat",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "who are you?"
+      }
+    ],
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    "stream": true
+  }'
