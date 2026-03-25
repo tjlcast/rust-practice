@@ -49,6 +49,12 @@ struct Delta {
     content: Option<String>,
 }
 
+// 从环境变量获取 API 基础 URL，如果未设置则使用默认值
+fn get_api_base_url() -> String {
+    env::var("API_BASE_URL")
+        .unwrap_or_else(|_| "http://121.40.102.152:8080".to_string())
+}
+
 // #[tokio::main]
 pub async fn run() -> Result<()> {
     // 从命令行参数获取 stream 模式，默认为 false
@@ -97,8 +103,9 @@ pub async fn run() -> Result<()> {
 async fn handle_normal_response(client: Client, request: ChatRequest) -> Result<()> {
     println!("发送请求...");
 
+    let base_url = get_api_base_url();
     let response = client
-        .post("http://121.40.102.152:8080/v1/chat/completions")
+        .post(format!("{}/v1/chat/completions", base_url))
         .header("Content-Type", "application/json")
         .json(&request)
         .send()
@@ -121,8 +128,9 @@ async fn handle_normal_response(client: Client, request: ChatRequest) -> Result<
 async fn handle_stream_response(client: Client, request: ChatRequest) -> Result<()> {
     println!("发送流式请求...\n");
 
+    let base_url = get_api_base_url();
     let response = client
-        .post("http://121.40.102.152:8080/v1/chat/completions")
+        .post(format!("{}/v1/chat/completions", base_url))
         .header("Content-Type", "application/json")
         .json(&request)
         .send()
